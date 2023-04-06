@@ -1,0 +1,77 @@
+.\
+.\"
+.\" Define V font for inline verbatim, using C font in formats
+.\" that render this, and otherwise B font.
+.ie "\f[CB]x\f[]"x" \{\
+. ftr V B
+. ftr VI BI
+. ftr VB B
+. ftr VBI BI
+.\}
+.el \{\
+. ftr V CR
+. ftr VI CI
+. ftr VB CB
+. ftr VBI CBI
+.\}
+.TH "DISTROBOX-STOP" "1" "Dec 2022" "Distrobox" "User Manual"
+.hy
+.SH NAME
+.IP
+.nf
+\f[C]
+distrobox stop
+distrobox-stop
+\f[R]
+.fi
+.SH DESCRIPTION
+.PP
+distrobox-stop stop a running distrobox.
+.PP
+Distroboxes are left running, even after exiting out of them, so that
+subsequent enters are really quick.
+This is how they can be stopped.
+.SH SYNOPSIS
+.PP
+\f[B]distrobox stop\f[R]
+.IP
+.nf
+\f[C]
+--name/-n:      name for the distrobox
+--yes/-Y:       non-interactive, stop without asking
+--help/-h:      show this message
+--root/-r:      launch podman/docker with root privileges. Note that if you need root this is the preferred
+            way over \[dq]sudo distrobox\[dq] (note: if using a program other than \[aq]sudo\[aq] for root privileges is necessary,
+            specify it through the DBX_SUDO_PROGRAM env variable, or \[aq]distrobox_sudo_program\[aq] config variable)
+--verbose/-v:       show more verbosity
+--version/-V:       show version
+\f[R]
+.fi
+.SH EXAMPLES
+.IP
+.nf
+\f[C]
+distrobox-stop --name container-name
+distrobox-stop container-name
+\f[R]
+.fi
+.PP
+You can also use environment variables to specify container manager and
+name:
+.IP
+.nf
+\f[C]
+DBX_CONTAINER_MANAGER=\[dq]docker\[dq] DBX_CONTAINER_NAME=test-alpine distrobox-stop
+\f[R]
+.fi
+.PP
+Supported environment variables:
+.IP
+.nf
+\f[C]
+DBX_CONTAINER_MANAGER
+DBX_CONTAINER_NAME
+DBX_NON_INTERACTIVE
+DBX_SUDO_PROGRAM
+\f[R]
+.fi

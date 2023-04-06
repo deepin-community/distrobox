@@ -1,0 +1,212 @@
+---
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review, edited, labeled]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      run_always:
+        description: 'Run even if no files are changed'
+        required: true
+        type: boolean
+# Check if we indeed modified distrobox stuff
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    if: >-
+      contains( github.event.pull_request.labels.*.name, 'CI') ||
+      github.ref == 'refs/heads/main'
+    outputs:
+      distrobox_changed: ${{ steps.check_file_changed.outputs.distrobox_changed }}
+    steps:
+
+      - uses: actions/checkout@v3
+        with:
+          # Checkout as many commits as needed for the diff
+          fetch-depth: 2
+
+      # Fetch from compatibility table all the distros supported
+      - id: check_file_changed
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -Ev "host-exec|generate-entry|ephemeral|upgrade" | grep -E "^distrobox|compatibility.md"; then
+            echo "::set-output name=distrobox_changed::True"
+          else
+            echo "::set-output name=distrobox_changed::False"
+          fi
+
+  # Prepare distros matrix
+  setup:
+    runs-on: ubuntu-latest
+    needs: check_changes
+    outputs:
+      targets: ${{ steps.set-matrix.outputs.targets }}
+    if: >-
+      needs.check_changes.outputs.distrobox_changed == 'True' ||
+      github.event.inputs.run_always == 'True'
+    steps:
+
+      - uses: actions/checkout@v3
+
+      # Fetch from compatibility table all the distros supported
+      - id: set-matrix
+        run: |
+            echo "::set-output name=targets::$(grep -E 'docker.io|quay.io|ghcr|registry.|ecr.' docs/compatibility.md |
+              cut -d'|' -f 4 |
+              sed 's/<br>/\n/g' |
+              tr -d ' ' |
+              tail -n +2 |
+              jq -R -s -c 'split("\n")[:-1]')"
+
+  run:
+
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        distribution: ${{fromJSON(needs.setup.outputs.targets)}}
+        container_manager: ["podman", "docker"]
+    env:
+      DBX_CONTAINER_MANAGER: ${{ matrix.container_manager }}
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      # Ensure distrobox create works:
+      - name: Distrobox create
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ${DBX_CONTAINER_MANAGER} pull "${image}"
+          ./distrobox create --yes -i "${image}" --name "${container_name}"
+          #case "${container_name}" in
+          #  *init*)
+          #    echo "SYSTEMD DETECTED: creating container with --init..."
+          #    ./distrobox create --yes -i "${image}" --name "${container_name}" --init
+          #    ;;
+          #  *)
+          #    ./distrobox create --yes -i "${image}" --name "${container_name}"
+          #    ;;
+          # esac
+
+      # Ensure distrobox enter and init works:
+      - name: Distrobox enter - init
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox enter --name "${container_name}" -- whoami
+          # Temporary disable systemd init on github runners, it seems to be incompatible
+          # with runner services:
+          #   Failed to create /system.slice/runner-provisioner.service/init.scope control group: Permission denied
+          # works fine otherwise.
+          # case "${container_name}" in
+          #   *init*)
+          #     echo "SYSTEMD DETECTED: performing systemctl check..."
+          #     ./distrobox enter --name "${container_name}" -- systemctl status --no-pager
+          #     ;;
+          #   *)
+          #     ./distrobox enter --name "${container_name}" -- whoami
+          #     ;;
+          # esac
+
+      # Ensure distrobox enter and init works:
+      - name: Distrobox enter - user
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          # Assert that distrobox exported binary indeed works
+          set -x
+          command_output="$(./distrobox enter --name "${container_name}" -- whoami | tr -d '\r' | tr -d '^@')"
+          expected_output="$(whoami)"
+          if [ "$command_output" != "$expected_output" ]; then
+            exit 1
+          fi
+
+      # Ensure distrobox enter and init works:
+      - name: Distrobox enter - command
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          # Assert that distrobox exported binary indeed works
+          set -x
+          command_output="$(./distrobox enter --name "${container_name}" -- uname -n | tr -d '\r' | tr -d '^@')"
+          expected_output="${container_name}.$(uname -n)"
+          if [ "$command_output" != "$expected_output" ]; then
+            exit 1
+          fi
+
+      # Ensure distrobox export works:
+      - name: Distrobox export
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox enter "${container_name}" -- distrobox-export --bin /bin/uname --export-path ${HOME}/
+          # Assert that distrobox exported binary indeed works
+          set -x
+          command_output="$(${HOME}/uname -n | tr -d '\r' | tr -d '^@')"
+          expected_output="${container_name}.$(uname -n)"
+          if [ "$command_output" != "$expected_output" ]; then
+            exit 1
+          fi
+
+      # Ensure distrobox export works:
+      - name: Distrobox export - sudo
+        shell: 'script -q -e -c "bash {0}"'
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox enter "${container_name}" -- distrobox-export --sudo --bin /bin/uname --export-path ${HOME}/
+          # Assert that distrobox exported binary indeed works
+          set -x
+          command_output="$(${HOME}/uname -n | tr -d '\r' | tr -d '^@')"
+          expected_output="${container_name}.$(uname -n)"
+          if [ "$command_output" != "$expected_output" ]; then
+            exit 1
+          fi
+
+      # Ensure distrobox list works:
+      - name: Distrobox list
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox list | grep "${container_name}" | grep "${image}" | grep -E "Up|running"
+
+      # Ensure distrobox stop works:
+      - name: Distrobox stop
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox stop --yes "${container_name}"
+
+      # Ensure distrobox rm works:
+      - name: Distrobox logs on failure
+        if: ${{ failure() }}
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          $DBX_CONTAINER_MANAGER logs "${container_name}"
+
+      # Ensure distrobox rm works:
+      - name: Distrobox rm
+        if: ${{ always() }}
+        run: |
+          image=${{ matrix.distribution }}
+          container_name="$(basename "${image}" | sed -E 's/[:.]/-/g')"
+          ./distrobox rm --force "${container_name}"

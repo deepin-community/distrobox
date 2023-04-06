@@ -1,0 +1,126 @@
+.\
+.\"
+.\" Define V font for inline verbatim, using C font in formats
+.\" that render this, and otherwise B font.
+.ie "\f[CB]x\f[]"x" \{\
+. ftr V B
+. ftr VI BI
+. ftr VB B
+. ftr VBI BI
+.\}
+.el \{\
+. ftr V CR
+. ftr VI CI
+. ftr VB CB
+. ftr VBI CBI
+.\}
+.TH "DISTROBOX-ENTER" "1" "Dec 2022" "Distrobox" "User Manual"
+.hy
+.SH NAME
+.IP
+.nf
+\f[C]
+distrobox enter
+distrobox-enter
+\f[R]
+.fi
+.SH DESCRIPTION
+.PP
+distrobox-enter takes care of entering the container with the name
+specified.
+Default command executed is your SHELL, but you can specify different
+shells or entire commands to execute.
+If using it inside a script, an application, or a service, you can
+specify the \[en]headless mode to disable tty and interactivity.
+.SH SYNOPSIS
+.PP
+\f[B]distrobox enter\f[R]
+.IP
+.nf
+\f[C]
+--name/-n:      name for the distrobox                      default: my-distrobox
+--/-e:          end arguments execute the rest as command to execute at login   default: bash -l
+--no-tty/-T:        do not instantiate a tty
+--no-workdir/-nw:       always start the container from container\[aq]s home directory
+--additional-flags/-a:  additional flags to pass to the container manager command
+--help/-h:      show this message
+--root/-r:      launch podman/docker with root privileges. Note that if you need root this is the preferred
+            way over \[dq]sudo distrobox\[dq] (note: if using a program other than \[aq]sudo\[aq] for root privileges is necessary,
+            specify it through the DBX_SUDO_PROGRAM env variable, or \[aq]distrobox_sudo_program\[aq] config variable)
+--dry-run/-d:       only print the container manager command generated
+--verbose/-v:       show more verbosity
+--version/-V:       show version
+\f[R]
+.fi
+.SH EXAMPLES
+.IP
+.nf
+\f[C]
+distrobox-enter --name fedora-toolbox-35 -- bash -l
+distrobox-enter my-alpine-container -- sh -l
+distrobox-enter --additional-flags \[dq]--preserve-fds\[dq] --name test -- bash -l
+distrobox-enter --additional-flags \[dq]--env MY_VAR=value\[dq] --name test -- bash -l
+MY_VAR=value distrobox-enter --additional-flags \[dq]--preserve-fds\[dq] --name test -- bash -l
+\f[R]
+.fi
+.PP
+You can also use environment variables to specify container manager and
+container name:
+.IP
+.nf
+\f[C]
+DBX_CONTAINER_MANAGER=\[dq]docker\[dq] DBX_CONTAINER_NAME=test-alpine distrobox-enter
+\f[R]
+.fi
+.PP
+Supported environment variables:
+.IP
+.nf
+\f[C]
+DBX_CONTAINER_NAME
+DBX_CONTAINER_MANAGER
+DBX_SKIP_WORKDIR
+DBX_SUDO_PROGRAM
+\f[R]
+.fi
+.PP
+This is used to enter the distrobox itself.
+Personally, I just create multiple profiles in my
+\f[V]gnome-terminal\f[R] to have multiple distros accessible.
+.PP
+The \f[V]--additional-flags\f[R] or \f[V]-a\f[R] is useful to modify
+default command when executing in the container.
+For example:
+.IP
+.nf
+\f[C]
+distrobox enter -n dev-arch --additional-flags \[dq]--env my_var=test\[dq] -- printenv &| grep my_var
+my_var=test
+\f[R]
+.fi
+.PP
+This is possible also using normal env variables:
+.IP
+.nf
+\f[C]
+my_var=test distrobox enter -n dev-arch --additional-flags -- printenv &| grep my_var
+my_var=test
+\f[R]
+.fi
+.PP
+If you\[cq]d like to enter a rootful container having distrobox use a
+program other than `sudo' to run podman/docker as root, such as `pkexec'
+or `doas', you may specify it with the \f[V]DBX_SUDO_PROGRAM\f[R]
+environment variable.
+For example, to use `doas' to enter a rootful container:
+.IP
+.nf
+\f[C]
+DBX_SUDO_PROGRAM=\[dq]doas\[dq] distrobox enter -n container --root
+\f[R]
+.fi
+.PP
+Additionally, in one of the config file paths that distrobox supports,
+such as \f[V]\[ti]/.distroboxrc\f[R], you can also append the line
+\f[V]distrobox_sudo_program=\[dq]doas\[dq]\f[R] (for example) to always
+run distrobox commands involving rootful containers using `doas'.

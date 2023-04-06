@@ -1,0 +1,5 @@
+---
+theme: jekyll-theme-slate
+title: Distrobox
+description: Use any linux distribution inside your terminal
+show_downloads: true

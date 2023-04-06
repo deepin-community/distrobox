@@ -1,0 +1,24 @@
+# pandoc-generated manpages have lintian warnings
+
+# NAME section missing or invalid
+# https://github.com/89luca89/distrobox/issues/367
+bad-whatis-entry
+
+# seems to be because the tables are overly large; suppress
+groff-message
+
+# distrobox-init: false positives
+# $ checkbashisms ./distrobox-init 2>&1 | grep possible
+# possible bashism in ./distrobox-init line 324 (time):
+# possible bashism in ./distrobox-init line 374 (time):
+# possible bashism in ./distrobox-init line 438 (time):
+# possible bashism in ./distrobox-init line 485 (time):
+# possible bashism in ./distrobox-init line 525 (time):
+# possible bashism in ./distrobox-init line 583 (time):
+# possible bashism in ./distrobox-init line 624 (time):
+# => these are false positives, 'time' here is a package to be installed
+#
+# possible bashism in ./distrobox-init line 980 ($UID should be "$(id -ru)"):
+# possible bashism in ./distrobox-init line 981 ($EUID should be "$(id -u)"):
+# => these are false positives, the variables are conditionally defined using `id`
+bash-term-in-posix-shell *usr/bin/distrobox-init:*

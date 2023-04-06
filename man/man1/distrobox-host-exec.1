@@ -1,0 +1,72 @@
+.\
+.\"
+.\" Define V font for inline verbatim, using C font in formats
+.\" that render this, and otherwise B font.
+.ie "\f[CB]x\f[]"x" \{\
+. ftr V B
+. ftr VI BI
+. ftr VB B
+. ftr VBI BI
+.\}
+.el \{\
+. ftr V CR
+. ftr VI CI
+. ftr VB CB
+. ftr VBI CBI
+.\}
+.TH "DISTROBOX-HOST-EXEC" "1" "Dec 2022" "Distrobox" "User Manual"
+.hy
+.SH NAME
+.IP
+.nf
+\f[C]
+distrobox-host-exec
+\f[R]
+.fi
+.SH DESCRIPTION
+.PP
+distrobox-host-exec lets one execute command on the host, while inside
+of a container.
+.PP
+Under the hood, distrobox-host-exec uses \f[V]host-spawn\f[R] a project
+that let\[cq]s us execute commands back on the host.
+If the tool is not found the user will be prompted to install it.
+.SH SYNOPSIS
+.PP
+Just pass to \[lq]distrobox-host-exec\[rq] any command and all its
+arguments, if any.
+.IP
+.nf
+\f[C]
+distrobox-host-exec [command [arguments]]
+
+--help/-h:      show this message
+--verbose/-v:       show more verbosity
+--version/-V:       show version
+\f[R]
+.fi
+.PP
+If no command is provided, it will execute \[lq]$SHELL\[rq].
+.PP
+Alternatively, use symlinks to make \f[V]distrobox-host-exec\f[R]
+execute as that command:
+.IP
+.nf
+\f[C]
+\[ti]$: ln -s /usr/bin/distrobox-host-exec /usr/local/bin/podman
+\[ti]$: ls -l /usr/local/bin/podman
+lrwxrwxrwx. 1 root root 51 Jul 11 19:26 /usr/local/bin/podman -> /usr/bin/distrobox-host-exec
+\[ti]$: podman version
+\&...this is executed on host...
+\f[R]
+.fi
+.SH EXAMPLES
+.IP
+.nf
+\f[C]
+distrobox-host-exec ls
+distrobox-host-exec bash -l
+distrobox-host-exec flatpak run org.mozilla.firefox
+distrobox-host-exec podman ps -a
+\f[R]
+.fi

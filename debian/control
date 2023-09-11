@@ -13,7 +13,7 @@ Rules-Requires-Root: no
 Package: distrobox
 Architecture: all
 Depends:
- podman | docker.io,
+ podman | docker.io | docker-ce,
  ${misc:Depends},
 Description: Another tool for containerized command line environments on Linux
  Use any Linux distribution inside your terminal. Distrobox uses podman or

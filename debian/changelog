@@ -1,3 +1,9 @@
+distrobox (1.4.2.1-1deepin1) unstable; urgency=medium
+
+  * add depend docker-ce to control
+
+ -- chenchongbiao <chenchongbiao@deepin.org>  Mon, 11 Sep 2023 10:55:41 +0800
+
 distrobox (1.4.2.1-1deepin) unstable; urgency=medium
 
   * update changelog.

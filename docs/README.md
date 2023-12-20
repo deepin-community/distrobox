@@ -1,7 +1,9 @@
-![distrobox-logo](https://user-images.githubusercontent.com/598882/157771834-7423cf9b-8311-4e90-8a79-cd0eff6bd632.png)
-<sub>logo credits [j4ckr3d](https://github.com/j4ckr3d)<sub>
+<img src="assets/splash.svg" style="border-radius:12px">
 
 # Distrobox
+
+<sub>previous logo credits [j4ckr3d](https://github.com/j4ckr3d)  
+current logo credits [David Lapshin](https://github.com/daudix-UFO)<sub>
 
 ![Lint](https://github.com/89luca89/distrobox/actions/workflows/main.yml/badge.svg)
 [![CI](https://github.com/89luca89/distrobox/actions/workflows/compatibility.yml/badge.svg)](https://github.com/89luca89/distrobox/actions/workflows/compatibility.yml)
@@ -14,7 +16,8 @@
 Use any Linux distribution inside your terminal. Enable both backward and forward
 compatibility with software and freedom to use whatever distribution you’re more
 comfortable with.
-Distrobox uses `podman` or `docker` to create containers using the Linux distribution
+Distrobox uses `podman`, `docker` or
+[`lilipod`](https://github.com/89luca89/lilipod) to create containers using the Linux distribution
 of your choice.
 The created container will be tightly integrated with the host, allowing sharing
 of the HOME directory of the user, external storage, external USB devices and
@@ -22,7 +25,7 @@ graphical apps (X11/Wayland), and audio.
 
 ---
 
-[Documentation](https://distrobox.privatedns.org/#distrobox) -
+[Documentation](https://distrobox.it/#distrobox) -
 [Matrix Room](https://matrix.to/#/%23distrobox:matrix.org) -
 [Telegram Group](https://t.me/distrobox)
 
@@ -37,9 +40,13 @@ graphical apps (X11/Wayland), and audio.
     - [See it in action](#see-it-in-action)
   - [Why?](#why)
     - [Aims](#aims)
+      - [Security implications](#security-implications)
+- [Quick Start](#quick-start)
+- [Assemble Distrobox](#assemble-distrobox)
+- [Configure Distrobox](#configure-distrobox)
 - [Installation](#installation)
   - [Alternative methods](#alternative-methods)
-    - [Curl](#curl)
+    - [Curl or Wget](#curl-or-wget)
     - [Git](#git)
   - [Dependencies](#dependencies)
     - [Install Podman without root](compatibility.md#install-podman-in-a-static-manner)
@@ -47,9 +54,11 @@ graphical apps (X11/Wayland), and audio.
 - [Compatibility](compatibility.md)
   - [Supported container managers](compatibility.md#supported-container-managers)
   - [Host Distros](compatibility.md#host-distros)
+    - [Install on the Steamdeck](posts/steamdeck_guide.md)
   - [Containers Distros](compatibility.md#containers-distros)
 - [Usage](usage/usage.md)
   - [Outside the distrobox](usage/usage.md#outside-the-distrobox)
+    - [distrobox-assemble](usage/distrobox-assemble.md)
     - [distrobox-create](usage/distrobox-create.md)
     - [distrobox-enter](usage/distrobox-enter.md)
     - [distrobox-ephemeral](usage/distrobox-ephemeral.md)
@@ -64,31 +73,44 @@ graphical apps (X11/Wayland), and audio.
     - [distrobox-init](usage/distrobox-init.md)
   - [Configure distrobox](#configure-distrobox)
 - [Useful tips](useful_tips.md)
-  - [Execute complex commands directly from distrobox-enter](useful_tips.md#execute-complex-commands-directly-from-distrobox-enter)
+  - [Launch a distrobox from you applications list](useful_tips.md#launch-a-distrobox-from-you-applications-list)
   - [Create a distrobox with a custom HOME directory](useful_tips.md#create-a-distrobox-with-a-custom-home-directory)
   - [Mount additional volumes in a distrobox](useful_tips.md#mount-additional-volumes-in-a-distrobox)
   - [Use a different shell than the host](useful_tips.md#use-a-different-shell-than-the-host)
+  - [Run the container with real root](useful_tips.md#run-the-container-with-real-root)
+  - [Run Debian/Ubuntu container behind proxy](useful_tips.md#run-debianubuntu-container-behind-proxy)
+  - [Using a command other than sudo to run a rootful container](useful_tips.md#using-a-command-other-than-sudo-to-run-a-rootful-container)
   - [Duplicate an existing distrobox](useful_tips.md#duplicate-an-existing-distrobox)
   - [Export to the host](useful_tips.md#export-to-the-host)
   - [Execute commands on the host](useful_tips.md#execute-commands-on-the-host)
+  - [Resolve "Error cannot open display: :0"](useful_tips.md#resolve-error-cannot-open-display-0)
   - [Enable SSH X-Forwarding when SSH-ing in a distrobox](useful_tips.md#enable-ssh-x-forwarding-when-ssh-ing-in-a-distrobox)
-  - [Use distrobox to install different flatpaks from the host](useful_tips.md#use-distrobox-to-install-different-flatpaks-from-the-host)
-  - [Using podman inside a distrobox](useful_tips.md#using-podman-inside-a-distrobox)
-  - [Using docker inside a distrobox](useful_tips.md#using-docker-inside-a-distrobox)
   - [Using init system inside a distrobox](useful_tips.md#using-init-system-inside-a-distrobox)
+  - [Using Docker inside a Distrobox](useful_tips.md#using-docker-inside-a-distrobox)
+  - [Using Podman inside a Distrobox](useful_tips.md#using-podman-inside-a-distrobox)
+  - [Using LXC inside a Distrobox](useful_tips.md#using-lxc-inside-a-distrobox)
+  - [Using Waydroid inside a Distrobox](useful_tips.md#using-waydroid-inside-a-distrobox)
+    - [Manual Installation](useful_tips.md#manual-installation)
+    - [Automated Installation](useful_tips.md#automated-installation)
+  - [Using host's Podman or Docker inside a Distrobox](useful_tips.md#using-hosts-podman-or-docker-inside-a-distrobox)
   - [Using distrobox as main cli](useful_tips.md#using-distrobox-as-main-cli)
   - [Using a different architecture](useful_tips.md#using-a-different-architecture)
-  - [Slow creation on podman and image size getting bigger with distrobox-create](useful_tips.md#slow-creation-on-podman-and-image-size-getting-bigger-with-distrobox-create)
+  - [Using the GPU inside the container](useful_tips.md#using-the-gpu-inside-the-container)
+    - [Using nvidia-container-toolkit](useful_tips.md#using-nvidia-container-toolkit)
+  - [Slow creation on podman and image size getting bigger with distrobox create](useful_tips.md#slow-creation-on-podman-and-image-size-getting-bigger-with-distrobox-create)
   - [Container save and restore](useful_tips.md#container-save-and-restore)
   - [Check used resources](useful_tips.md#check-used-resources)
-  - [Build a Gentoo distrobox container](distrobox_gentoo.md)
-  - [Build a Dedicated distrobox container](distrobox_custom.md)
+  - [Pre-installing additional package repositories](useful_tips.md#pre-installing-additional-package-repositories)
+  - [Apply resource limitation on the fly](useful_tips.md#apply-resource-limitation-on-the-fly)
 - [Posts](posts/posts.md)
+  - [Create a dedicated distrobox container](posts/distrobox_custom.md)
+  - [Execute a command on the Host](posts/execute_commands_on_host.md)
+  - [Install Podman in HOME](posts/install_podman_static.md)
+  - [Install Lilipod in HOME](posts/install_lilipod_static.md)
+  - [Install on Steamdeck](posts/steamdeck_guide.md)
+  - [Integrate VSCode and Distrobox](posts/integrate_vscode_distrobox.md)
   - [Run Libvirt using distrobox](posts/run_libvirt_in_distrobox.md)
   - [Run latest GNOME and KDE Plasma using distrobox](posts/run_latest_gnome_kde_on_distrobox.md)
-  - [Integrate VSCode and Distrobox](posts/integrate_vscode_distrobox.md)
-  - [Execute a command on the Host](posts/execute_commands_on_host.md)
-  - [Apply resource limitation on the fly](useful_tips.md#apply-resource-limitation-on-the-fly)
 - [Featured Articles](featured_articles.md)
   - [Articles](featured_articles.md#articles)
     - [Run Distrobox on Fedora Linux - Fedora Magazine](https://fedoramagazine.org/run-distrobox-on-fedora-linux/)
@@ -110,13 +132,16 @@ graphical apps (X11/Wayland), and audio.
     - [A "Box" Full of Tools and Distros - Dario Faggioli @ OpenSUSE Conference 2022](https://www.youtube.com/watch?v=_RzARte80SQ)
     - [Podman Community Meeting October 4, 2022](https://www.youtube.com/watch?v=JNijOHL4_Ko)
     - [Distrobox opens the Steam Deck to a whole new world (GUIDE) - GamingOnLinux](https://www.youtube.com/watch?v=kkkyNA31KOA)
+    - [CERN - Containerization as a means of extending the lifetime of HDL development tools](https://cdsweb.cern.ch/record/2859962?ln=ja)
+    - [How to Code with Distrobox on the Steam Deck](https://www.youtube.com/watch?v=qic7lmACqPo)
+    - [Why you should be running the MicroOS Desktop](https://www.youtube.com/watch?v=lKYLF1tA4Ik)
   - [Podcasts](featured_articles.md#podcasts)
 
 ---
 
 ## What it does
 
-Simply put it's a fancy wrapper around `podman` or `docker` to create and start
+Simply put it's a fancy wrapper around `podman`, `docker` or `lilipod` to create and start
 containers highly integrated with the hosts.
 
 The distrobox environment is based on an OCI image.
@@ -131,10 +156,12 @@ but in a simplified way using POSIX sh and aiming at broader compatibility.
 
 All the props go to them as they had the great idea to implement this stuff.
 
-It is divided into 10 commands:
+It is divided into 12 commands:
 
+- `distrobox-assemble` - creates and destroy containers based on a config file
 - `distrobox-create` - creates the container
 - `distrobox-enter`  - to enter the container
+- `distrobox-ephemeral`  - create a temporal container, destroy it when exiting the shell
 - `distrobox-list` - to list containers created with distrobox
 - `distrobox-rm` - to delete a container created with distrobox
 - `distrobox-stop` - to stop a running container created with distrobox
@@ -155,7 +182,7 @@ Please check [the usage docs here](usage/usage.md) and [see some handy tips on h
 
 Thanks to [castrojo](https://github.com/castrojo), you can see Distrobox in
 action in this explanatory video on his setup with Distrobox, Toolbx,
-Fedora Silverblue on his project [ublue](https://github.com/castrojo/ublue)
+Fedora Silverblue for the [uBlue](https://github.com/ublue-os) project
 (check it out!)
 
 [![Video](https://user-images.githubusercontent.com/598882/153680522-f5903607-2854-4cfb-a186-cba7403745bd.png)](https://www.youtube.com/watch?v=Q2PrISAOtbY)
@@ -163,7 +190,7 @@ Fedora Silverblue on his project [ublue](https://github.com/castrojo/ublue)
 ## Why
 
 - Provide a mutable environment on an immutable OS, like [Endless OS,
-  Fedora Silverblue, OpenSUSE MicroOS](compatibility.md#host-distros)  or [SteamOS3](posts/install_rootless.md)
+  Fedora Silverblue, OpenSUSE MicroOS, ChromeOS](compatibility.md#host-distros)  or [SteamOS3](posts/steamdeck_guide.md)
 - Provide a locally privileged environment for sudoless setups
   (eg. company-provided laptops, security reasons, etc...)
 - To mix and match a stable base system (eg. Debian Stable, Ubuntu LTS, RedHat)
@@ -172,13 +199,13 @@ Fedora Silverblue on his project [ublue](https://github.com/castrojo/ublue)
 - Leverage high abundance of curated distro images for docker/podman to
   manage multiple environments
 
-Refer to the compatiblity list for an overview of supported host's distro
+Refer to the compatibility list for an overview of supported host's distro
 [HERE](compatibility.md#host-distros) and container's distro [HERE](compatibility.md#containers-distros).
 
 ### Aims
 
 This project aims to bring **any distro userland to any other distro**
-supporting podman or docker.
+supporting podman, docker or lilipod.
 It has been written in POSIX sh to be as portable as possible and not have
 problems with dependencies and glibc version's compatibility.
 
@@ -206,10 +233,12 @@ The container will have complete access to your home, pen drives and so on,
 so do not expect it to be highly sandboxed like a plain
 docker/podman container or a flatpak.
 
-⚠️ **BE CAREFUL**:⚠️  if you use docker, or you use podman with the `--root/-r` flag,
+⚠️ **BE CAREFUL**:⚠️  if you use docker, or you use podman/lilipod with the `--root/-r` flag,
 the containers will run as root, so **root inside the rootful container can modify
 system stuff outside the container**,
-if you have security concern for this, **use podman that runs in rootless mode**.
+Be also aware that **In rootful mode, you'll be asked to setup user's password**, this will
+ensure at least that the container is not a passwordless gate to root,
+but if you have security concern for this, **use podman or lilipod that runs in rootless mode**.
 Rootless docker is still not working as intended and will be included in the future
 when it will be complete.
 
@@ -218,43 +247,51 @@ as discussed here: [#28 Sandboxed mode](https://github.com/89luca89/distrobox/is
 
 ---
 
-# Basic usage
+# Quick Start
 
-Create a new distrobox:
+**Create a new distrobox:**
 
 `distrobox create -n test`
 
-Enter created distrobox:
+**Create a new distrobox with Systemd (acts similar to an LXC):**
+
+`distrobox create --name test --init --image debian:latest --additional-packages "systemd libpam-systemd"`
+
+**Enter created distrobox:**
 
 `distrobox enter test`
-  
-Add [various](https://github.com/89luca89/distrobox/blob/main/docs/compatibility.md#host-distros)
-distroboxes, eg Ubuntu 20.04:
+
+**Add one with a [different distribution](https://github.com/89luca89/distrobox/blob/main/docs/compatibility.md#host-distros),
+eg Ubuntu 20.04:**
 
 `distrobox create -i ubuntu:20.04`
 
-Execute a command in a distrobox:
+**Execute a command in a distrobox:**
 
 `distrobox enter test -- command-to-execute`
 
-Upgrade all distroboxes at once:
-
-`distrobox upgrade --all`
-
-List running distroboxes:
+**List running distroboxes:**
 
 `distrobox list`
 
-Stop a running distrobox:
+**Stop a running distrobox:**
 
 `distrobox stop test`
 
-Remove a distrobox
+**Remove a distrobox:**
 
 `distrobox rm test`
 
 You can check [HERE for more advanced usage](usage/usage.md)
 and check a [comprehensive list of useful tips HERE](useful_tips.md)
+
+# Assemble Distrobox
+
+Manifest files can be used to declare a set of distroboxes and use
+`distrobox-assemble` to create/destroy them in batch.
+
+Head over the [usage docs of distrobox-assemble](usage/distrobox-assemble.md)
+for a more detailed guide.
 
 # Configure Distrobox
 
@@ -267,6 +304,9 @@ to the most important:
 - ${HOME}/.config/distrobox/distrobox.conf
 - ${HOME}/.distroboxrc
 
+You can specify inside distrobox configurations and distrobox-specific Environment
+variables.
+
 Example configuration file:
 
 ```conf
@@ -278,8 +318,11 @@ container_name_default="test-name-1"
 container_user_custom_home="$HOME/.local/share/container-home-test"
 container_init_hook="~/.local/distrobox/a_custom_default_init_hook.sh"
 container_pre_init_hook="~/a_custom_default_pre_init_hook.sh"
+container_manager_additional_flags="--env-file /path/to/file --custom-flag"
+container_additional_volumes="/example:/example1 /example2:/example3:ro"
 non_interactive="1"
 skip_workdir="0"
+PATH="$PATH:/path/to/custom/podman"
 ```
 
 Alternatively it is possible to specify preferences using ENV variables:
@@ -306,38 +349,48 @@ Thanks to the maintainers for their work: [M0Rf30](https://github.com/M0Rf30),
 [alcir](https://github.com/alcir), [dfaggioli](https://github.com/dfaggioli),
 [AtilaSaraiva](https://github.com/AtilaSaraiva), [michel-slm](https://github.com/michel-slm)
 
-You can also [follow the guide to install in a rootless manner](posts/install_rootless.md)
-
 ## Alternative methods
 
 Here is a list of alternative ways to install distrobox
 
-### Curl
+### Curl or Wget
 
 If you like to live your life dangerously, or you want the latest release,
 you can trust me and simply run this in your terminal:
 
 ```sh
 curl -s https://raw.githubusercontent.com/89luca89/distrobox/main/install | sudo sh
+# or using wget
+wget -qO- https://raw.githubusercontent.com/89luca89/distrobox/main/install | sudo sh
 ```
 
 or if you want to select a custom directory to install without sudo:
 
 ```sh
 curl -s https://raw.githubusercontent.com/89luca89/distrobox/main/install | sh -s -- --prefix ~/.local
+# or using wget
+wget -qO- https://raw.githubusercontent.com/89luca89/distrobox/main/install | sh -s -- --prefix ~/.local
 ```
 
 If you want to install the last development version, directly from last commit on git, you can use:
 
 ```sh
 curl -s https://raw.githubusercontent.com/89luca89/distrobox/main/install | sudo sh -s -- --next
+# or using wget
+wget -qO- https://raw.githubusercontent.com/89luca89/distrobox/main/install | sudo sh -s -- --next
 ```
 
 or:
 
 ```sh
 curl -s https://raw.githubusercontent.com/89luca89/distrobox/main/install | sh -s -- --next --prefix ~/.local
+# or using wget
+wget -qO- https://raw.githubusercontent.com/89luca89/distrobox/main/install | sh -s -- --next --prefix ~/.local
 ```
+
+#### Upgrading
+
+Just run the `curl` or `wget` command again.
 
 > **Warning**
 > Remember to add prefix-path-you-choose/bin to your PATH, to make it work.
@@ -363,13 +416,15 @@ distro-specific instructions.
 ## Dependencies
 
 Distrobox depends on a container manager to work, you can choose to install
-either podman or docker.
+either podman, docker or [lilipod](https://github.com/89luca89/lilipod).
 
 Please look in the [Compatibility Table](compatibility.md#host-distros) for your
 distribution notes.
 
-There are ways to install [Podman without root privileges and in home.](compatibility.md#install-podman-in-a-static-manner)
-This should play well with completely sudoless setups and with devices like the Steam Deck.
+There are ways to install
+[Podman without root privileges and in home.](compatibility.md#install-podman-in-a-static-manner) or
+[Lilipod without root privileges and in home.](compatibility.md#install-lilipod-in-a-static-manner)
+This should play well with completely sudoless setups and with devices like the Steam Deck (SteamOS).
 
 ---
 
@@ -397,6 +452,11 @@ you can specify another directory if needed with `./uninstall --prefix ~/.local`
 
 ---
 
-![distrobox-box](https://user-images.githubusercontent.com/598882/144294113-ab3c62b0-4ff0-488f-8e85-dfecc308e561.png)
+![distro-box](./assets/distro-box.png)
 
----
+<sub>This artwork uses [Cardboard Box](https://skfb.ly/6Wq6q) model by [J0Y](https://sketchfab.com/lloydrostek)
+licensed under [Creative Commons Attribution 4.0](http://creativecommons.org/licenses/by/4.0)  
+This artwork uses [GTK Loop Animation](https://github.com/gnome-design-team/gnome-mockups/blob/master/gtk/loop6.blend)
+by [GNOME Project](https://www.gnome.org)
+licensed under [Creative Commons Attribution-ShareAlike 3.0](https://creativecommons.org/licenses/by-sa/3.0)
+as a pre-configured scene<sub>

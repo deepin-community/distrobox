@@ -21,25 +21,38 @@
 # POSIX
 # Optional env variables:
 #	DBX_CONTAINER_MANAGER
-#   DBX_CONTAINER_NAME
-#   DBX_NON_INTERACTIVE
+#	DBX_CONTAINER_NAME
+#	DBX_NON_INTERACTIVE
 #	DBX_SUDO_PROGRAM
 
-# Dont' run this command as sudo.
-if [ "$(id -u)" -eq 0 ]; then
-	printf >&2 "Running %s as sudo is not supported.\n" "$(basename "${0}")"
-	printf >&2 " try instead running:\n"
-	printf >&2 "	%s --root %s\n" "$(basename "${0}")" "$*"
+# Despite of running this script via SUDO/DOAS being not supported (the
+# script itself will call the appropriate tool when necessary), we still want
+# to allow people to run it as root, logged in in a shell, and create rootful
+# containers.
+#
+# SUDO_USER is a variable set by SUDO and can be used to check whether the script was called by it. Same thing for DOAS_USER, set by DOAS.
+if { [ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]; } && [ "$(id -ru)" -eq 0 ]; then
+	printf >&2 "Running %s via SUDO/DOAS is not supported. Instead, please try running:\n" "$(basename "${0}")"
+	printf >&2 "  %s --root %s\n" "$(basename "${0}")" "$*"
 	exit 1
 fi
 
+trap cleanup TERM INT HUP
+
+name=$(mktemp -u distrobox-XXXXXXXXXX)
 container_command=""
 create_flags=""
 distrobox_path="$(dirname "${0}")"
 extra_flags=""
-rootful=0
+# If the user runs this script as root in a login shell, set rootful=1.
+# There's no need for them to pass the --root flag option in such cases.
+[ "$(id -ru)" -eq 0 ] && rootful=1 || rootful=0
 verbose=0
-version="1.4.2.1"
+version="1.6.0.1"
+container_additional_packages=""
+container_init_hook=" "
+container_manager_additional_flags=""
+container_pre_init_hook=" "
 
 # Print usage to stdout.
 # Arguments:
@@ -52,11 +65,11 @@ distrobox version: ${version}
 
 Usage:
 
-	distrobox-ephemeral --name container-name [--force]
+	distrobox-ephemeral [--root/-r]
 
 Options:
 
-	--root/-r:		launch podman/docker with root privileges. Note that if you need root this is the preferred
+	--root/-r:		launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
 				way over "sudo distrobox" (note: if using a program other than 'sudo' for root privileges is necessary,
 				specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
 	--verbose/-v:		show more verbosity
@@ -66,11 +79,7 @@ Options:
 
 See also:
 
-	distrobox-create --help
-
-	for a list of additional flags to specify during the creation.
-	distrobox-ephemeral can use all flags from distrobox-create.
-
+	distrobox-ephemeral also inherits all the flags from distrobox-create:
 EOF
 }
 
@@ -80,6 +89,7 @@ while :; do
 		-h | --help)
 			# Call a "show_help" function to display a synopsis, then exit.
 			show_help
+			"${distrobox_path}"/distrobox-create --help | tail -n +2
 			exit 0
 			;;
 		-r | --root)
@@ -98,6 +108,42 @@ while :; do
 			shift
 			container_command="-- $*"
 			break
+			;;
+		-n | --name)
+			# Ignore --name on ephemeral
+			if [ -n "$2" ]; then
+				name="${2}"
+				shift
+				shift
+			fi
+			;;
+		-a | --additional-flags)
+			if [ -n "$2" ]; then
+				container_manager_additional_flags="${container_manager_additional_flags} ${2}"
+				shift
+				shift
+			fi
+			;;
+		-ap | --additional-packages)
+			if [ -n "$2" ]; then
+				container_additional_packages="${container_additional_packages} ${2}"
+				shift
+				shift
+			fi
+			;;
+		--init-hooks)
+			if [ -n "$2" ]; then
+				container_init_hook="$2"
+				shift
+				shift
+			fi
+			;;
+		--pre-init-hooks)
+			if [ -n "$2" ]; then
+				container_pre_init_hook="${2}"
+				shift
+				shift
+			fi
 			;;
 		*) # Default case: If no more options then break out of the loop.
 			# If we have a flagless option and container_name is not specified
@@ -119,17 +165,56 @@ if [ "${verbose}" -ne 0 ]; then
 	extra_flags="${extra_flags} --verbose"
 fi
 
-# prepend sudo (or the specified sudo program) if we want podman or docker to be rootful
+# prepend sudo (or the specified sudo program) if we want our container manager to be rootful
 if [ "${rootful}" -ne 0 ]; then
 	extra_flags="${extra_flags} --root"
 fi
 
-name=$(mktemp -u distrobox-XXXXXXXXXX)
+# Generate distrobox-create command to execute.
+# Arguments:
+#   None
+# Outputs:
+#   prints the distrobox-create command handling special flags
+generate_command() {
+
+	result_command="${distrobox_path}/distrobox-create"
+	if [ -n "${container_manager_additional_flags}" ]; then
+		result_command="${result_command} \
+			--additional-flags \"${container_manager_additional_flags}\""
+	fi
+	if [ -n "${container_additional_packages}" ]; then
+		result_command="${result_command} \
+			--additional-packages \"${container_additional_packages}\""
+	fi
+	if [ -n "${container_init_hook}" ]; then
+		result_command="${result_command} \
+			--init-hooks \"${container_init_hook}\""
+	fi
+	if [ -n "${container_pre_init_hook}" ]; then
+		result_command="${result_command} \
+			--pre-init-hooks \"${container_pre_init_hook}\""
+	fi
+	result_command="${result_command} \
+		${extra_flags} ${create_flags} --yes --name ${name}"
+
+	# Return generated command.
+	printf "%s" "${result_command}"
+}
+
+cleanup() {
+	# shellcheck disable=SC2086
+	"${distrobox_path}"/distrobox-stop ${extra_flags} "${name}" --yes
+	# shellcheck disable=SC2086
+	"${distrobox_path}"/distrobox-rm ${extra_flags} --force "${name}" --yes
+}
+
+cmd="$(generate_command)"
 # shellcheck disable=SC2086
-"${distrobox_path}"/distrobox-create --name ${name} --yes ${create_flags} ${extra_flags}
+eval ${cmd}
 # shellcheck disable=SC2086
-"${distrobox_path}"/distrobox-enter "${name}" ${container_command} ${extra_flags}
-# shellcheck disable=SC2086
-"${distrobox_path}"/distrobox-stop "${name}" --yes ${extra_flags}
-# shellcheck disable=SC2086
-"${distrobox_path}"/distrobox-rm --force "${name}" --yes ${extra_flags}
+"${distrobox_path}"/distrobox-enter ${extra_flags} "${name}" ${container_command}
+exit_code="$?"
+
+cleanup
+
+exit "${exit_code}"

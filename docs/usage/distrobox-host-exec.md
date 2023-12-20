@@ -7,7 +7,7 @@
 
 distrobox-host-exec lets one execute command on the host, while inside of a container.
 
-Under the hood, distrobox-host-exec uses `host-spawn` a project that let's us
+Under the hood, distrobox-host-exec uses `host-spawn` a project that lets us
 execute commands back on the host.
 If the tool is not found the user will be prompted to install it.
 
@@ -15,11 +15,13 @@ If the tool is not found the user will be prompted to install it.
 
 Just pass to "distrobox-host-exec" any command and all its arguments, if any.
 
-	distrobox-host-exec [command [arguments]]
-
 	--help/-h:		show this message
 	--verbose/-v:		show more verbosity
 	--version/-V:		show version
+	--yes/-Y:		Automatically answer yes to prompt:
+                                host-spawn will be installed on the guest system
+                                if host-spawn is not detected.
+                                This behaviour is default when running in a non-interactive shell.
 
 If no command is provided, it will execute "$SHELL".
 

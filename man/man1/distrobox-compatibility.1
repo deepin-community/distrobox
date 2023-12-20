@@ -15,7 +15,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX" "1" "Dec 2022" "Distrobox" "User Manual"
+.TH "DISTROBOX" "1" "Nov 2023" "Distrobox" "User Manual"
 .hy
 .SH COMPATIBILITY
 .PP
@@ -36,8 +36,8 @@ basic user management utilities (\f[V]usermod, passwd\f[R]), and
 \f[V]sudo\f[R] correctly set.
 .SS SUPPORTED CONTAINER MANAGERS
 .PP
-\f[V]distrobox\f[R] can run on either \f[V]podman\f[R] or
-\f[V]docker\f[R]
+\f[V]distrobox\f[R] can run on either \f[V]podman\f[R], \f[V]docker\f[R]
+or \f[V]lilipod\f[R] (https://github.com/89luca89/lilipod)
 .PP
 It depends either on \f[V]podman\f[R] configured in
 \f[V]rootless mode\f[R] or on \f[V]docker\f[R] configured without sudo
@@ -46,7 +46,9 @@ instructions (https://docs.docker.com/engine/install/linux-postinstall/))
 .IP \[bu] 2
 Minimum podman version: \f[B]2.1.0\f[R]
 .IP \[bu] 2
-Minimum docker version: \f[B]18.06.1\f[R]
+Minimum docker client version: \f[B]19.03.15\f[R]
+.IP \[bu] 2
+Minimum lilipod version: \f[B]v0.0.1\f[R]
 .PP
 Follow the official installation guide here:
 .IP \[bu] 2
@@ -71,6 +73,120 @@ T}@T{
 Images
 T}
 _
+T{
+AlmaLinux (Toolbox)
+T}@T{
+8 9
+T}@T{
+quay.io/toolbx-images/almalinux-toolbox:8
+quay.io/toolbx-images/almalinux-toolbox:9
+quay.io/toolbx-images/almalinux-toolbox:latest
+T}
+T{
+Alpine (Toolbox)
+T}@T{
+3.16 3.17 3.18 edge
+T}@T{
+quay.io/toolbx-images/alpine-toolbox:3.16
+quay.io/toolbx-images/alpine-toolbox:3.17
+quay.io/toolbx-images/alpine-toolbox:3.18
+quay.io/toolbx-images/alpine-toolbox:edge
+quay.io/toolbx-images/alpine-toolbox:latest
+T}
+T{
+AmazonLinux (Toolbox)
+T}@T{
+2 2022
+T}@T{
+quay.io/toolbx-images/amazonlinux-toolbox:2
+quay.io/toolbx-images/amazonlinux-toolbox:2023
+quay.io/toolbx-images/amazonlinux-toolbox:latest
+T}
+T{
+Archlinux (Toolbox)
+T}@T{
+T}@T{
+quay.io/toolbx-images/archlinux-toolbox:latest
+T}
+T{
+Bazzite Arch
+T}@T{
+T}@T{
+ghcr.io/ublue-os/bazzite-arch:latest
+ghcr.io/ublue-os/bazzite-arch-gnome:latest
+T}
+T{
+Centos (Toolbox)
+T}@T{
+stream8 stream9
+T}@T{
+quay.io/toolbx-images/centos-toolbox:stream8
+quay.io/toolbx-images/centos-toolbox:stream9
+quay.io/toolbx-images/centos-toolbox:latest
+T}
+T{
+Debian (Toolbox)
+T}@T{
+10 11 12 testing unstable
+T}@T{
+quay.io/toolbx-images/debian-toolbox:10
+quay.io/toolbx-images/debian-toolbox:11
+quay.io/toolbx-images/debian-toolbox:12
+quay.io/toolbx-images/debian-toolbox:testing
+quay.io/toolbx-images/debian-toolbox:unstable
+quay.io/toolbx-images/debian-toolbox:latest
+T}
+T{
+Fedora (Toolbox)
+T}@T{
+36 37 38 39 Rawhide
+T}@T{
+registry.fedoraproject.org/fedora-toolbox:37
+registry.fedoraproject.org/fedora-toolbox:38
+registry.fedoraproject.org/fedora-toolbox:39
+registry.fedoraproject.org/fedora-toolbox:latest
+T}
+T{
+openSUSE (Toolbox)
+T}@T{
+T}@T{
+registry.opensuse.org/opensuse/distrobox:latest
+quay.io/toolbx-images/opensuse-toolbox:tumbleweed
+quay.io/toolbx-images/opensuse-toolbox:latest
+T}
+T{
+RedHat (Toolbox)
+T}@T{
+8 9
+T}@T{
+registry.access.redhat.com/ubi8/toolbox
+registry.access.redhat.com/ubi9/toolbox
+quay.io/toolbx-images/rhel-toolbox:latest
+T}
+T{
+Rocky Linux (Toolbox)
+T}@T{
+8 9
+T}@T{
+quay.io/toolbx-images/rockylinux-toolbox:8
+quay.io/toolbx-images/rockylinux-toolbox:9
+quay.io/toolbx-images/rockylinux-toolbox:latest
+T}
+T{
+Ubuntu (Toolbox)
+T}@T{
+16.04 18.04 20.04 22.04
+T}@T{
+quay.io/toolbx-images/ubuntu-toolbox:16.04
+quay.io/toolbx-images/ubuntu-toolbox:18.04
+quay.io/toolbx-images/ubuntu-toolbox:20.04
+quay.io/toolbx-images/ubuntu-toolbox:22.04
+quay.io/toolbx-images/ubuntu-toolbox:latest
+T}
+T{
+T}@T{
+T}@T{
+T}
 T{
 AlmaLinux (UBI)
 T}@T{
@@ -97,11 +213,11 @@ T}
 T{
 AmazonLinux
 T}@T{
-1 2 2022
+1 2 2023
 T}@T{
 public.ecr.aws/amazonlinux/amazonlinux:1
 public.ecr.aws/amazonlinux/amazonlinux:2
-public.ecr.aws/amazonlinux/amazonlinux:2022.0.20220531.0
+public.ecr.aws/amazonlinux/amazonlinux:2023
 T}
 T{
 Archlinux
@@ -124,19 +240,32 @@ T}@T{
 quay.io/centos/centos:7
 T}
 T{
+Chainguard Wolfi
+T}@T{
+Small note: sudo is missing, use su-exec instead.
+T}@T{
+cgr.dev/chainguard/wolfi-base:latest
+T}
+T{
 ClearLinux
 T}@T{
 T}@T{
 docker.io/library/clearlinux:latest docker.io/library/clearlinux:base
 T}
 T{
+Crystal Linux
+T}@T{
+T}@T{
+registry.getcryst.al/crystal/misc/docker:latest
+T}
+T{
 Debian
 T}@T{
-7 8 9 10 11
+7 8 9 10 11 12
 T}@T{
-docker.io/debian/eol:wheezy docker.io/debian/eol:jessie
-docker.io/library/debian:9 docker.io/library/debian:10
-docker.io/library/debian:stable
+docker.io/debian/eol:wheezy docker.io/library/debian:buster-backports
+docker.io/library/debian:bullseye-backports
+docker.io/library/debian:bookworm-backports
 docker.io/library/debian:stable-backports
 T}
 T{
@@ -155,13 +284,19 @@ T}@T{
 docker.io/library/debian:unstable
 T}
 T{
+deepin
+T}@T{
+20 (apricot) 23 (beige)
+T}@T{
+docker.io/linuxdeepin/apricot docker.io/linuxdeepin/beige
+T}
+T{
 Fedora
 T}@T{
-35 36 37 38 Rawhide
+36 37 38 39 Rawhide
 T}@T{
-registry.fedoraproject.org/fedora-toolbox:37 quay.io/fedora/fedora:35
 quay.io/fedora/fedora:36 registry.fedoraproject.org/fedora:37
-quay.io/fedora/fedora:38
+quay.io/fedora/fedora:38 quay.io/fedora/fedora:39
 T}
 T{
 Gentoo Linux
@@ -171,6 +306,15 @@ T}@T{
 docker.io/gentoo/stage3:latest
 T}
 T{
+KDE neon
+T}@T{
+Latest Testing Unstable
+T}@T{
+invent-registry.kde.org/neon/docker-images/plasma:latest
+invent-registry.kde.org/neon/docker-images/plasma:testing
+invent-registry.kde.org/neon/docker-images/plasma:unstable
+T}
+T{
 Kali Linux
 T}@T{
 rolling
@@ -178,11 +322,11 @@ T}@T{
 docker.io/kalilinux/kali-rolling:latest
 T}
 T{
-Mageia
+Mint
 T}@T{
-8
+21.1
 T}@T{
-docker.io/library/mageia
+docker.io/linuxmintd/mint21.1-amd64
 T}
 T{
 Neurodebian
@@ -192,17 +336,18 @@ T}@T{
 docker.io/library/neurodebian:nd100
 T}
 T{
-Opensuse
+openSUSE
 T}@T{
 Leap
 T}@T{
 registry.opensuse.org/opensuse/leap:latest
 T}
 T{
-Opensuse
+openSUSE
 T}@T{
 Tumbleweed
 T}@T{
+registry.opensuse.org/opensuse/distrobox:latest
 registry.opensuse.org/opensuse/tumbleweed:latest
 registry.opensuse.org/opensuse/toolbox:latest
 T}
@@ -257,25 +402,34 @@ T}
 T{
 Ubuntu
 T}@T{
-14.04 16.04 18.04 20.04 22.04 22.10
+14.04 16.04 18.04 20.04 22.04 23.04
 T}@T{
 docker.io/library/ubuntu:14.04 docker.io/library/ubuntu:16.04
 docker.io/library/ubuntu:18.04 docker.io/library/ubuntu:20.04
 docker.io/library/ubuntu:22.04
 T}
 T{
+Vanilla OS
+T}@T{
+VSO
+T}@T{
+ghcr.io/vanilla-os/vso:main
+T}
+T{
 Void Linux
 T}@T{
 T}@T{
-ghcr.io/void-linux/void-linux:latest-full-x86_64
-ghcr.io/void-linux/void-linux:latest-full-x86_64-musl
+ghcr.io/void-linux/void-glibc-full:latest
 T}
 .TE
 .PP
-Note however that if you use a non-toolbox preconfigured image (e.g.
-images pre-baked to work with <https://github.com/containers/toolbox>),
-the \f[B]first\f[R] \f[V]distrobox-enter\f[R] you\[cq]ll perform can
-take a while as it will download and install the missing dependencies.
+Images marked with \f[B]Toolbox\f[R] are tailored images made by the
+community efforts in
+toolbx-images/images (https://github.com/toolbx-images/images), so they
+are more indicated for desktop use, and first setup will take less time.
+Note however that if you use a non-toolbox preconfigured image, the
+\f[B]first\f[R] \f[V]distrobox-enter\f[R] you\[cq]ll perform can take a
+while as it will download and install the missing dependencies.
 .PP
 A small time tax to pay for the ability to use any type of image.
 This will \f[B]not\f[R] occur after the first time, \f[B]subsequent
@@ -283,9 +437,10 @@ enters will be much faster.\f[R]
 .PP
 NixOS is not a supported container distro, and there are currently no
 plans to bring support to it.
-If you are looking for unprivlaged NixOS environments, we suggest you
+If you are looking for unprivileged NixOS environments, we suggest you
 look into
-nix-shell (https://nixos.org/manual/nix/unstable/command-ref/nix-shell.html).
+nix-shell (https://nixos.org/manual/nix/unstable/command-ref/nix-shell.html)
+or nix portable (https://github.com/DavHau/nix-portable)
 .SS NEW DISTRO SUPPORT
 .PP
 If your distro of choice is not on the list, open an issue requesting
@@ -307,3 +462,13 @@ bootloader of the host.
 Keep also in mind that mirrors could be down for such old releases, so
 you will need to build a custom distrobox image to ensure basic
 dependencies are met.
+.SS GPU ACCELERATION SUPPORT
+.PP
+For Intel and AMD Gpus, the support is baked in, as the containers will
+install their latest available mesa/dri drivers.
+.PP
+For NVidia, you can use the \f[V]--nvidia\f[R] flag during create, see
+distrobox-create documentation to discover how to use it.
+.PP
+Alternatively, you can use the nvidia-container-toolkit utility to set
+up the integration independently from the distrobox\[cq]s own flag.

@@ -14,7 +14,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX-GENERATE-ENTRY" "1" "Dec 2022" "Distrobox" "User Manual"
+.TH "DISTROBOX-GENERATE-ENTRY" "1" "Nov 2023" "Distrobox" "User Manual"
 .hy
 .SH NAME
 .IP
@@ -34,18 +34,45 @@ This will be then deleted when you remove the matching distrobox.
 .IP
 .nf
 \f[C]
-    --help/-h:            show this message
-    --all/-a:              perform for all distroboxes
-    --delete/-d:            delete the entry
-    --icon/-i:            specify a custom icon [/path/to/icon] (default auto)
-    --verbose/-v:          show more verbosity
-    --version/-V:          show version
+--help/-h:      show this message
+--all/-a:       perform for all distroboxes
+--delete/-d:        delete the entry
+--icon/-i:      specify a custom icon [/path/to/icon] (default auto)
+--root/-r:      perform on rootful distroboxes
+--verbose/-v:       show more verbosity
+--version/-V:       show version
 \f[R]
 .fi
 .SH EXAMPLES
+.PP
+Generate an entry for a container
 .IP
 .nf
 \f[C]
-distrobox-generate-entry container-name [--delete] [--icon [auto,/path/to/icon]]
+distrobox generate-entry my-container-name
+\f[R]
+.fi
+.PP
+Specify a custom icon for the entry
+.IP
+.nf
+\f[C]
+distrobox generate-entry my-container-name --icon /path/to/icon.png
+\f[R]
+.fi
+.PP
+Generate an entry for all distroboxes
+.IP
+.nf
+\f[C]
+distrobox generate-entry --all
+\f[R]
+.fi
+.PP
+Delete an entry
+.IP
+.nf
+\f[C]
+distrobox generate-entry container-name --delete
 \f[R]
 .fi

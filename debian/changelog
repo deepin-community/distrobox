@@ -1,14 +1,22 @@
-distrobox (1.4.2.1-1deepin1) unstable; urgency=medium
+distrobox (1.6.0.1-1deepin1) unstable; urgency=medium
 
   * add depend docker-ce to control
 
- -- chenchongbiao <chenchongbiao@deepin.org>  Mon, 11 Sep 2023 10:55:41 +0800
+ -- chenchongbiao <chenchongbiao@deepin.org>  Wed, 20 Dec 2023 20:42:12 +0800
 
-distrobox (1.4.2.1-1deepin) unstable; urgency=medium
+distrobox (1.6.0.1-1) unstable; urgency=low
 
-  * update changelog.
+  * New upstream version 1.6.0.1
+  * Update homepage and maintainer name
 
- -- LiChengGang <lichenggang@uniontech.com>  Thu, 06 Apr 2023 13:39:30 +0800
+ -- Michel Lind <michel@michel-slm.name>  Mon, 27 Nov 2023 19:16:08 -0500
+
+distrobox (1.5.0.2-1) unstable; urgency=low
+
+  * Depend on uidmap unconditionally. Closes: #1041413
+  * New upstream version 1.5.0.2
+
+ -- Michel Alexandre Salim <michel@michel-slm.name>  Thu, 14 Sep 2023 14:30:46 -0500
 
 distrobox (1.4.2.1-1) unstable; urgency=low
 

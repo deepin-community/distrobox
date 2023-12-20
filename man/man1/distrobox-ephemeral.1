@@ -14,7 +14,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX-EPHEMERAL" "1" "Dec 2022" "Distrobox" "User Manual"
+.TH "DISTROBOX-EPHEMERAL" "1" "Nov 2023" "Distrobox" "User Manual"
 .hy
 .SH NAME
 .IP
@@ -34,7 +34,7 @@ destroyed when the command is terminated.
 .IP
 .nf
 \f[C]
---root/-r:      launch podman/docker with root privileges. Note that if you need root this is the preferred
+--root/-r:      launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
             way over \[dq]sudo distrobox\[dq] (note: if using a program other than \[aq]sudo\[aq] for root privileges is necessary,
             specify it through the DBX_SUDO_PROGRAM env variable, or \[aq]distrobox_sudo_program\[aq] config variable)
 --verbose/-v:       show more verbosity
@@ -54,24 +54,15 @@ distrobox-ephemeral --root --verbose --image alpine:latest --volume /opt:/opt
 .PP
 You can also use flags from \f[B]distrobox-create\f[R] to customize the
 ephemeral container to run.
-.PP
-Refer to
-.IP
-.nf
-\f[C]
-man distrobox-create
-\f[R]
-.fi
-.PP
-or
+.SH SEE ALSO
 .IP
 .nf
 \f[C]
 distrobox-create --help
+man distrobox-create
 \f[R]
 .fi
-.PP
-Supported environment variables:
+.SH ENVIRONMENT VARIABLES
 .IP
 .nf
 \f[C]

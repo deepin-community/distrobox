@@ -22,7 +22,7 @@
 set -o errexit
 set -o nounset
 
-version="1.4.2.1"
+version="1.6.0.1"
 
 # Print usage to stdout.
 # Arguments:
@@ -34,9 +34,10 @@ show_help() {
 distrobox version: ${version}
 
 Choose one of the available commands:
+	assemble
 	create
 	enter
-	list
+	list | ls
 	rm
 	stop
 	upgrade
@@ -58,13 +59,16 @@ shift
 # Simple wrapper to the distrobox utilities.
 # We just detect the 1st argument and launch the matching distrobox utility.
 case "${distrobox_command}" in
+	assemble)
+		"${distrobox_path}"/distrobox-assemble "$@"
+		;;
 	create)
 		"${distrobox_path}"/distrobox-create "$@"
 		;;
 	enter)
 		"${distrobox_path}"/distrobox-enter "$@"
 		;;
-	list)
+	ls | list)
 		"${distrobox_path}"/distrobox-list "$@"
 		;;
 	stop)

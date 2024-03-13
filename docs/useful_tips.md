@@ -28,6 +28,7 @@
   - [Check used resources](#check-used-resources)
   - [Pre-installing additional package repositories](#pre-installing-additional-package-repositories)
   - [Apply resource limitation on the fly](#apply-resource-limitation-on-the-fly)
+  - [Copy/yank text to host clipboard](#copy-text-to-host-clipboard)
 
 ---
 
@@ -217,12 +218,10 @@ xhost +si:localuser:$USER`
 
 SSH X-forwarding by default will not work because the container hostname is
 different from the host's one.
-You can create a distrobox with will have the same hostname as the host by
-creating it with the following init-hook:
+You can create a distrobox that will have the same hostname as the host by creating it with:
 
 ```sh
-distrobox create --name test --image your-chosen-image:tag \
-                  --init-hooks '"$(uname -n)" > /etc/hostname'`
+distrobox create --name test --hostname "$(uname -n)" --image your-chosen-image:tag
 ```
 
 This will ensure SSH X-Forwarding will work when SSH-ing inside the distrobox:
@@ -255,7 +254,7 @@ distrobox create -i debian:stable --init --additional-packages "systemd libpam-s
 distrobox create -i ubuntu:22.04 --init --additional-packages "systemd libpam-systemd" -n test
 distrobox create -i archlinux:latest --init --additional-packages "systemd" -n test
 distrobox create -i registry.opensuse.org/opensuse/tumbleweed:latest --init --additional-packages "systemd" -n test
-distrobox create -i registry.fedoraproject.org/fedora:38 --init --additional-packages "systemd" -n test
+distrobox create -i registry.fedoraproject.org/fedora:39 --init --additional-packages "systemd" -n test
 ```
 
 Note however that in this mode, you'll not be able to access host's processes
@@ -837,3 +836,8 @@ Then reload systemd daemon to apply the changes:
 ```bash
 systemctl --user daemon-reload
 ```
+
+## Copy text to host clipboard
+
+To copy/yank text from the container to the host clipboard you need to install
+`xsel` in the container for Xorg hosts or `wlroots` for wayland hosts.

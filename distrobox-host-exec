@@ -31,7 +31,7 @@ host_spawn_version="1.5.0"
 download_command=""
 sudo_command=""
 verbose=0
-version="1.6.0.1"
+version="1.7.0"
 
 # Print usage to stdout.
 # Arguments:
@@ -186,6 +186,8 @@ fi
 # This makes host-spawn work on initful containers, where the dbus session is
 # separate from the host, we point the dbus session straight to the host's socket
 # in order to talk with the org.freedesktop.Flatpak.Development.HostCommand on the host
+[ -z "${XDG_RUNTIME_DIR:-}" ] && XDG_RUNTIME_DIR="/run/user/$(id -ru)"
+[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -ru)/bus"
 XDG_RUNTIME_DIR="/run/host/${XDG_RUNTIME_DIR}"
 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/host/$(echo "${DBUS_SESSION_BUS_ADDRESS}" | cut -d '=' -f2-)"
 
@@ -202,6 +204,7 @@ DBUS_SESSION_BUS_ADDRESS="unix:path=/run/host/$(echo "${DBUS_SESSION_BUS_ADDRESS
 # Also, we don't initialize a pty, if we're not in a tty.
 if [ "$(basename "${host_command}")" = "xdg-open" ] ||
 	[ "$(basename "${host_command}")" = "gio" ] ||
+	[ "$(basename "${host_command}")" = "flatpak" ] ||
 	[ ! -t 1 ] ||
 	! tty > /dev/null 2>&1; then
 

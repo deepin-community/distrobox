@@ -1,8 +1,9 @@
-distrobox (1.6.0.1-1deepin1) unstable; urgency=medium
+distrobox (1.7.0-1) unstable; urgency=medium
 
-  * add depend docker-ce to control
+  * New upstream version 1.7.0
+  * Cleanup lintian overrides
 
- -- chenchongbiao <chenchongbiao@deepin.org>  Wed, 20 Dec 2023 20:42:12 +0800
+ -- Michel Lind <michel@michel-slm.name>  Mon, 04 Mar 2024 12:48:35 -0600
 
 distrobox (1.6.0.1-1) unstable; urgency=low
 

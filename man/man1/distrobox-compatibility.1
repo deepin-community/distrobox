@@ -15,7 +15,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX" "1" "Nov 2023" "Distrobox" "User Manual"
+.TH "DISTROBOX" "1" "Feb 2024" "Distrobox" "User Manual"
 .hy
 .SH COMPATIBILITY
 .PP
@@ -106,7 +106,7 @@ T{
 Archlinux (Toolbox)
 T}@T{
 T}@T{
-quay.io/toolbx-images/archlinux-toolbox:latest
+quay.io/toolbx/arch-toolbox:latest
 T}
 T{
 Bazzite Arch
@@ -139,20 +139,18 @@ T}
 T{
 Fedora (Toolbox)
 T}@T{
-36 37 38 39 Rawhide
+37 38 39 Rawhide
 T}@T{
 registry.fedoraproject.org/fedora-toolbox:37
 registry.fedoraproject.org/fedora-toolbox:38
 registry.fedoraproject.org/fedora-toolbox:39
-registry.fedoraproject.org/fedora-toolbox:latest
+registry.fedoraproject.org/fedora-toolbox:rawhide
 T}
 T{
 openSUSE (Toolbox)
 T}@T{
 T}@T{
 registry.opensuse.org/opensuse/distrobox:latest
-quay.io/toolbx-images/opensuse-toolbox:tumbleweed
-quay.io/toolbx-images/opensuse-toolbox:latest
 T}
 T{
 RedHat (Toolbox)
@@ -177,30 +175,20 @@ Ubuntu (Toolbox)
 T}@T{
 16.04 18.04 20.04 22.04
 T}@T{
-quay.io/toolbx-images/ubuntu-toolbox:16.04
-quay.io/toolbx-images/ubuntu-toolbox:18.04
-quay.io/toolbx-images/ubuntu-toolbox:20.04
-quay.io/toolbx-images/ubuntu-toolbox:22.04
-quay.io/toolbx-images/ubuntu-toolbox:latest
+quay.io/toolbx/ubuntu-toolbox:16.04 quay.io/toolbx/ubuntu-toolbox:18.04
+quay.io/toolbx/ubuntu-toolbox:20.04 quay.io/toolbx/ubuntu-toolbox:22.04
+quay.io/toolbx/ubuntu-toolbox:latest
 T}
 T{
 T}@T{
 T}@T{
-T}
-T{
-AlmaLinux (UBI)
-T}@T{
-8
-T}@T{
-quay.io/almalinux/8-base:8 quay.io/almalinux/8-init:8
 T}
 T{
 AlmaLinux
 T}@T{
 8 8-minimal 9 9-minimal
 T}@T{
-quay.io/almalinux/almalinux:8 quay.io/almalinux/almalinux:9
-quay.io/almalinux/almalinux:9-minimal
+docker.io/library/almalinux:8 docker.io/library/almalinux:9
 T}
 T{
 Alpine Linux
@@ -288,15 +276,16 @@ deepin
 T}@T{
 20 (apricot) 23 (beige)
 T}@T{
-docker.io/linuxdeepin/apricot docker.io/linuxdeepin/beige
+docker.io/linuxdeepin/apricot
 T}
 T{
 Fedora
 T}@T{
 36 37 38 39 Rawhide
 T}@T{
-quay.io/fedora/fedora:36 registry.fedoraproject.org/fedora:37
+quay.io/fedora/fedora:36 quay.io/fedora/fedora:37
 quay.io/fedora/fedora:38 quay.io/fedora/fedora:39
+quay.io/fedora/fedora:rawhide
 T}
 T{
 Gentoo Linux
@@ -308,11 +297,9 @@ T}
 T{
 KDE neon
 T}@T{
-Latest Testing Unstable
+Latest
 T}@T{
 invent-registry.kde.org/neon/docker-images/plasma:latest
-invent-registry.kde.org/neon/docker-images/plasma:testing
-invent-registry.kde.org/neon/docker-images/plasma:unstable
 T}
 T{
 Kali Linux
@@ -368,9 +355,7 @@ RedHat (UBI)
 T}@T{
 7 8 9
 T}@T{
-registry.access.redhat.com/ubi7/ubi
-registry.access.redhat.com/ubi7/ubi-init
-registry.access.redhat.com/ubi8/ubi
+registry.access.redhat.com/ubi7/ubi registry.access.redhat.com/ubi8/ubi
 registry.access.redhat.com/ubi8/ubi-init
 registry.access.redhat.com/ubi8/ubi-minimal
 registry.access.redhat.com/ubi9/ubi
@@ -393,11 +378,10 @@ T}@T{
 docker.io/library/sl:7
 T}
 T{
-Slackware
+SteamOS
 T}@T{
-14.2
 T}@T{
-docker.io/vbatts/slackware:14.2
+ghcr.io/linuxserver/steamos:latest
 T}
 T{
 Ubuntu

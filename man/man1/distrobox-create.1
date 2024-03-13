@@ -14,7 +14,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX-CREATE" "1" "Nov 2023" "Distrobox" "User Manual"
+.TH "DISTROBOX-CREATE" "1" "Feb 2024" "Distrobox" "User Manual"
 .hy
 .SH NAME
 .IP
@@ -38,7 +38,8 @@ usb devices and graphical apps (X11/Wayland), and audio.
 .nf
 \f[C]
 --image/-i:     image to use for the container  default: ${container_image_default}
---name/-n:      name for the distrobox      default: ${container_name_default}
+--name/-n:      name for the distrobox          default: ${container_name_default}
+--hostname:     hostname for the distrobox      default: <container-name>.$(uname -n)
 --pull/-p:      pull the image even if it exists locally (implies --yes)
 --yes/-Y:       non-interactive, pull images without asking
 --root/-r:      launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
@@ -55,8 +56,10 @@ usb devices and graphical apps (X11/Wayland), and audio.
 --pre-init-hooks:   additional commands to execute prior to container initialization
 --init/-I:      use init system (like systemd) inside the container.
             this will make host\[aq]s processes not visible from within the container. (assumes --unshare-process)
+            may require additional packages depending on the container image: https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
 --nvidia:       try to integrate host\[aq]s nVidia drivers in the guest
 --unshare-devsys:          do not share host devices and sysfs dirs from host
+--unshare-groups:          do not forward user\[aq]s additional groups into the container
 --unshare-ipc:          do not share ipc namespace with host
 --unshare-netns:        do not share the net namespace with host
 --unshare-process:          do not share process namespace with host
@@ -224,6 +227,7 @@ DBX_CONTAINER_HOME_PREFIX
 DBX_CONTAINER_IMAGE
 DBX_CONTAINER_MANAGER
 DBX_CONTAINER_NAME
+DBX_CONTAINER_HOSTNAME
 DBX_NON_INTERACTIVE
 DBX_SUDO_PROGRAM
 \f[R]
@@ -329,7 +333,7 @@ distrobox create -i debian:stable --init --additional-packages \[dq]systemd libp
 distrobox create -i ubuntu:22.04 --init --additional-packages \[dq]systemd libpam-systemd\[dq] -n test
 distrobox create -i archlinux:latest --init --additional-packages \[dq]systemd\[dq] -n test
 distrobox create -i registry.opensuse.org/opensuse/tumbleweed:latest --init --additional-packages \[dq]systemd\[dq] -n test
-distrobox create -i registry.fedoraproject.org/fedora:38 --init --additional-packages \[dq]systemd\[dq] -n test
+distrobox create -i registry.fedoraproject.org/fedora:39 --init --additional-packages \[dq]systemd\[dq] -n test
 \f[R]
 .fi
 .PP

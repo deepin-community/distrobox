@@ -32,6 +32,7 @@ exported_app_label=""
 exported_bin=""
 exported_delete=0
 extra_flags=""
+enter_flags=""
 # Use DBX_HOST_HOME if defined, else fallback to HOME
 #	DBX_HOST_HOME is set in case container is created
 #	with custom --home directory
@@ -39,9 +40,19 @@ host_home="${DISTROBOX_HOST_HOME:-"${HOME}"}"
 dest_path="${host_home}/.local/bin"
 is_sudo=0
 rootful=""
-start_shell="/bin/sh -l -c"
+sudo_prefix=""
 verbose=0
-version="1.6.0.1"
+version="1.7.0"
+
+sudo_askpass_path="${dest_path}/distrobox_sudo_askpass"
+sudo_askpass_script="#!/bin/sh
+if command -v zenity 2>&1 > /dev/null; then
+	zenity --password
+elif command -v kdialog 2>&1 > /dev/null; then
+	kdialog --password
+else
+	exit 127
+fi"
 
 # We depend on some commands, let's be sure we have them
 base_dependencies="basename find grep sed"
@@ -63,19 +74,22 @@ distrobox version: ${version}
 
 Usage:
 
-	distrobox-export --app mpv [--extra-flags "flags"] [--delete] [--sudo]
-	distrobox-export --bin /path/to/bin [--export-path ~/.local/bin] [--extra-flags "flags"] [--delete] [--sudo]
+	distrobox-export --app mpv [--extra-flags "flags"] [--enter-flags "flags"] [--delete] [--sudo]
+	distrobox-export --bin /path/to/bin [--export-path ~/.local/bin] [--extra-flags "flags"] [--enter-flags "flags"] [--delete] [--sudo]
 
 Options:
 
 	--app/-a:		name of the application to export
 	--bin/-b:		absolute path of the binary to export
+	--list-apps:		list applications exported from this container
+	--list-binaries		list binaries exported from this container, use -ep to specify custom paths to search
 	--delete/-d:		delete exported application or binary
 	--export-label/-el:	label to add to exported application name.
 				Use "none" to disable.
 				Defaults to (on \$container_name)
 	--export-path/-ep:	path where to export the binary
 	--extra-flags/-ef:	extra flags to add to the command
+	--enter-flags/-nf:	flags to add to distrobox-enter
 	--sudo/-S:		specify if the exported item should be run as sudo
 	--help/-h:		show this message
 	--verbose/-v:		show more verbosity
@@ -115,6 +129,16 @@ while :; do
 				shift
 			fi
 			;;
+		--list-apps)
+			export_action="list-apps"
+			exported_bin="null"
+			shift
+			;;
+		--list-binaries)
+			export_action="list-binaries"
+			exported_bin="null"
+			shift
+			;;
 		-S | --sudo)
 			is_sudo=1
 			shift
@@ -136,6 +160,13 @@ while :; do
 		-ef | --extra-flags)
 			if [ -n "$2" ]; then
 				extra_flags="$2"
+				shift
+				shift
+			fi
+			;;
+		-nf | --enter-flags)
+			if [ -n "$2" ]; then
+				enter_flags="$2"
 				shift
 				shift
 			fi
@@ -170,6 +201,13 @@ fi
 # Check if we're in a rootful or rootless container.
 if grep -q "rootless=0" /run/.containerenv 2> /dev/null; then
 	rootful="--root"
+
+	# We need an askpass script for SUDO_ASKPASS, to launch graphical apps
+	# from the drawer
+	if [ ! -e "${sudo_askpass_path}" ]; then
+		echo "${sudo_askpass_script}" > "${sudo_askpass_path}"
+		chmod +x "${sudo_askpass_path}"
+	fi
 fi
 
 # We're working with HOME, so we must run as USER, not as root.
@@ -180,8 +218,7 @@ fi
 
 # Ensure the foundamental variables are set and not empty, we will not proceed
 # if they are not all set.
-if [ -z "${exported_app}" ] &&
-	[ -z "${exported_bin}" ]; then
+if [ -z "${exported_app}" ] && [ -z "${exported_bin}" ]; then
 	printf >&2 "Error: Invalid arguments.\n"
 	printf >&2 "Error: missing export target. Run\n"
 	printf >&2 "\tdistrobox-export --help\n"
@@ -216,17 +253,51 @@ if [ -z "${container_name}" ]; then
 	container_name=$(uname -n | cut -d'.' -f1)
 fi
 
-#
-if  [ "${is_sudo}" -ne 0 ]; then
+# Command to execute
+container_command_suffix="${exported_bin} ${extra_flags} \"\$@\""
+
+# Check if exported application/binary should be run with sudo privileges
+if [ "${is_sudo}" -ne 0 ]; then
+	sudo_prefix="sudo -S"
+
+	# Edge case for systems without sudo
 	if command -v su-exec > /dev/null >&1; then
-		start_shell="su-exec root su - root ${start_shell}"
-	elif command -v sudo > /dev/null 2>&1; then
-		start_shell="$(command -v sudo) -i ${start_shell}"
+		sudo_prefix="su-exec root"
+		container_command_suffix="sh -l -c \"${exported_bin} ${extra_flags} \$*\""
 	fi
 fi
 
+# Filter enter_flags and remove redundant options
+if [ -n "${enter_flags}" ]; then
+	# shellcheck disable=SC2086
+	set -- ${enter_flags}
+	filtered_flags=""
+	# Inform user that certain flags are redundant
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--root | -r)
+				printf >&2 "Warning: %s argument will be set automatically and should be removed.\n" "${1}"
+				;;
+			--name | -n)
+				printf >&2 "Warning: %s argument will be set automatically and should be removed.\n" "${1}"
+				shift
+				;;
+			*)
+				filtered_flags="${filtered_flags} $1"
+				;;
+		esac
+		shift
+	done
+	enter_flags="${filtered_flags}"
+fi
+
 # Prefix to add to an existing command to work through the container
-container_command_prefix="${DISTROBOX_ENTER_PATH:-"distrobox-enter"} ${rootful} -n ${container_name} -- ${start_shell} "
+container_command_prefix="${DISTROBOX_ENTER_PATH:-"distrobox-enter"} ${rootful} -n ${container_name} ${enter_flags} -- ${sudo_prefix} "
+
+if [ -n "${rootful}" ]; then
+	container_command_prefix="env SUDO_ASKPASS=\"${sudo_askpass_path}\" DBX_SUDO_PROGRAM=\"sudo --askpass\" ${container_command_prefix}"
+fi
+
 if [ -z "${exported_app_label}" ]; then
 	exported_app_label=" (on ${container_name})"
 elif [ "${exported_app_label}" = "none" ]; then
@@ -247,8 +318,7 @@ generate_script() {
 # distrobox_binary
 # name: ${container_name}
 if [ -z "\${CONTAINER_ID}" ]; then
-	exec "${DISTROBOX_ENTER_PATH:-"distrobox-enter"}" ${rootful} -n ${container_name} -- \
-		${start_shell} '${exported_bin} ${extra_flags} \$@' -- "\$@"
+	exec "${DISTROBOX_ENTER_PATH:-"distrobox-enter"}" ${rootful} -n ${container_name} ${enter_flags} -- ${sudo_prefix} ${container_command_suffix}
 elif [ -n "\${CONTAINER_ID}" ] && [ "\${CONTAINER_ID}" != "${container_name}" ]; then
 	exec distrobox-host-exec ${dest_path}/$(basename "${exported_bin}") ${extra_flags} "\$@"
 else
@@ -347,11 +417,11 @@ export_application() {
 	# it is possible to export an app not only by its executable name but also
 	# by its launcher name.
 	desktop_files=$(
-		# shellcheck disable=SC2086,SC2038
-		find ${canon_dirs} -type f -printf "%p\n" -o -type l -printf '"%p"\n' |
-			xargs -I{} grep -le "Exec=.*${exported_app}.*" -le "Name=.*${exported_app}.*" "{}" |
-			xargs -I{} grep -Le "Exec=.*${DISTROBOX_ENTER_PATH:-"distrobox-enter"}.*" "{}" |
-			xargs -I{} printf "%s@" {}
+		# shellcheck disable=SC2086
+		find ${canon_dirs} -type f -print -o -type l -print | sed 's/./\\&/g' |
+			xargs -I{} grep -l -e "Exec=.*${exported_app}.*" -e "Name=.*${exported_app}.*" "{}" | sed 's/./\\&/g' |
+			xargs -I{} grep -L -e "Exec=.*${DISTROBOX_ENTER_PATH:-"distrobox.*enter"}.*" "{}" | sed 's/./\\&/g' |
+			xargs -I{} printf "%s@" "{}"
 	)
 
 	# Ensure the app we're exporting is installed
@@ -362,7 +432,7 @@ export_application() {
 		return 127
 	fi
 
-	# Find icons by usinc the Icon= specification. If it's only a name, we'll
+	# Find icons by using the Icon= specification. If it's only a name, we'll
 	# search for the file, if it's already a path, just grab it.
 	icon_files=""
 	IFS="@"
@@ -410,7 +480,7 @@ export_application() {
 
 		# check if we're exporting an icon which is not in a canonical path
 		if [ "${icon_home_directory}" = "$(dirname "${icon_file}")" ]; then
-			icon_home_directory="/run/host${host_home}/.local/share/icons/"
+			icon_home_directory="${host_home}/.local/share/icons/"
 			icon_file_absolute_path="${icon_home_directory}$(basename "${icon_file}")"
 		fi
 
@@ -451,7 +521,7 @@ export_application() {
 		# Add closing quote
 		# If a TryExec is present, we have to fake it as it will not work
 		# through the container separation
-		sed "s|^Exec=|Exec=${container_command_prefix} |g" "${desktop_file}" |
+		sed "s|^Exec=\(.*\)|Exec=${container_command_prefix} \1 |g" "${desktop_file}" |
 			sed "s|\(%.*\)|${extra_flags} \1|g" |
 			sed "/^TryExec=.*/d" |
 			sed "/^DBusActivatable=true/d" |
@@ -495,6 +565,68 @@ export_application() {
 
 }
 
+# List exported applications in canonical directories.
+# the following function will list exported desktop files from this container.
+#
+# Arguments:
+#	none
+# Outputs:
+#	a list of exported apps
+#	or error code.
+list_exported_applications() {
+	# In this phase we search for applications exported.
+	# First find command will grep through all files in the canonical directories
+	# and only list files that contain the $DISTROBOX_ENTER_PATH.
+	desktop_files=$(
+		# shellcheck disable=SC2086
+		find "/run/host${host_home}/.local/share/applications" -type f -print -o -type l -print 2> /dev/null | sed 's/./\\&/g' |
+			xargs -I{} grep -l -e "Exec=.*${DISTROBOX_ENTER_PATH:-"distrobox.*enter"}.*" "{}" | sed 's/./\\&/g' |
+			xargs -I{} printf "%s@" "{}"
+	)
+
+	# Then we try to pretty print them.
+	IFS="@"
+	for i in ${desktop_files}; do
+		# Get app name, and remove label
+		name="$(grep -Eo 'Name=.*' "${i}" | head -n 1 | cut -d'=' -f2- | sed 's|(.*)||g')"
+		# Print only stuff we exported from this box!
+		if echo "${i}" | grep -q "${CONTAINER_ID}"; then
+			printf "%-20s | %-30s\n" "${name}" "${i}"
+		fi
+	done
+}
+
+# List exported binaries.
+# the following function will list exported desktop files from this container.
+# If no export-path is specified, it searches in the default path.
+#
+# Arguments:
+#	none
+# Outputs:
+#	a list of exported apps
+#	or error code.
+list_exported_binaries() {
+	# In this phase we search for binaries exported.
+	# First find command will grep through all files in the canonical directories
+	# and only list files that contain the comment "# distrobox_binary".
+	binary_files=$(
+		find "${dest_path}" -type f -print 2> /dev/null | sed 's/./\\&/g' |
+			xargs -I{} grep -l -e "^# distrobox_binary" "{}" | sed 's/./\\&/g' |
+			xargs -I{} printf "%s@" "{}"
+	)
+
+	# Then we try to pretty print them.
+	IFS="@"
+	for i in ${binary_files}; do
+		# Get original binary name
+		name="$(grep -B1 "fi" "${i}" | grep exec | cut -d' ' -f2)"
+		# Print only stuff we exported from this box!
+		if grep "^# name:.*" "${i}" | grep -q "${CONTAINER_ID}"; then
+			printf "%-20s | %-30s\n" "${name}" "${i}"
+		fi
+	done
+}
+
 # Main routine
 case "${export_action}" in
 	app)
@@ -502,6 +634,12 @@ case "${export_action}" in
 		;;
 	bin)
 		export_binary
+		;;
+	list-apps)
+		list_exported_applications
+		;;
+	list-binaries)
+		list_exported_binaries
 		;;
 	*)
 		printf >&2 "Invalid arguments, choose an action below.\n"

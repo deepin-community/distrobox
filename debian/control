@@ -13,7 +13,7 @@ Rules-Requires-Root: no
 Package: distrobox
 Architecture: all
 Depends:
- podman | docker.io | docker-ce,
+ podman | docker.io,
  uidmap,
  ${misc:Depends},
 Description: Another tool for containerized command line environments on Linux

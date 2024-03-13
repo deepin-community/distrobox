@@ -24,14 +24,15 @@ default_input_file="./distrobox.ini"
 delete=-1
 distrobox_path="$(dirname "${0}")"
 dryrun=0
+boxname=""
 input_file=""
 replace=0
-boxname=""
+root_flag=""
 # tmpfile will be used as a little buffer to pass variables without messing up
 # quoting and escaping
 tmpfile="$(mktemp -u)"
 verbose=0
-version="1.6.0.1"
+version="1.7.0"
 # initializing block of variables used in the manifest
 additional_flags=""
 additional_packages=""
@@ -213,16 +214,17 @@ run_distrobox() (
 		. "${tmpfile}" && rm -f "${tmpfile}"
 	fi
 
+	if [ -n "${root}" ] && [ "${root}" -eq 1 ]; then
+		root_flag="--root"
+	fi
+
 	# We're going to delete, not create!
 	if [ "${delete}" -ne 0 ] || [ "${replace}" -ne 0 ]; then
 		printf " - Deleting %s... \n" "${name}"
 
 		if [ "${dryrun}" -eq 0 ]; then
-			if [ -n "${root}" ] && [ "${root}" -eq 1 ]; then
-				"${distrobox_path}"/distrobox rm --root -f "${name}" > /dev/null || :
-			else
-				"${distrobox_path}"/distrobox rm -f "${name}" > /dev/null || :
-			fi
+			# shellcheck disable=SC2086,2248
+			"${distrobox_path}"/distrobox rm ${root_flag} -f "${name}" > /dev/null || :
 		fi
 
 		if [ "${delete}" -ne 0 ]; then
@@ -298,8 +300,8 @@ run_distrobox() (
 
 			# Prepare for the next line, if we already have a ';' or '&&', do nothing
 			# else prefer adding '&&'
-			if ! echo "${arg}" | grep -q ';[[:space:]]\{0,1\}$' &&
-				! echo "${arg}" | grep -q '&&[[:space:]]\{0,1\}$'; then
+			if ! echo "${arg}" | grep -qE ';[[:space:]]{0,1}$' &&
+				! echo "${arg}" | grep -qE '&&[[:space:]]{0,1}$'; then
 				separator="&&"
 			else
 				separator=""
@@ -321,8 +323,8 @@ run_distrobox() (
 
 			# Prepare for the next line, if we already have a ';' or '&&', do nothing
 			# else prefer adding '&&'
-			if ! echo "${arg}" | grep -E ';[[:space:]]\{0,1\}$' &&
-				! echo "${arg}" | grep -E '&&[[:space:]]\{0,1\}$'; then
+			if ! echo "${arg}" | grep -qE ';[[:space:]]{0,1}$' &&
+				! echo "${arg}" | grep -qE '&&[[:space:]]{0,1}$'; then
 				separator="&&"
 			else
 				separator=""
@@ -361,24 +363,36 @@ run_distrobox() (
 	# If we need to start immediately, do it, so that the container
 	# is ready to be entered.
 	if [ -n "${start_now}" ] && [ "${start_now}" -eq 1 ]; then
-		"${distrobox_path}"/distrobox enter "${name}" -- touch /dev/null
+		# shellcheck disable=SC2086,2248
+		"${distrobox_path}"/distrobox enter ${root_flag} "${name}" -- touch /dev/null
 	fi
 
 	# if there are exported bins and apps declared, let's export them
 	if [ -n "${exported_apps}" ] || [ -n "${exported_bins}" ]; then
 		# First we start the container
-		"${distrobox_path}"/distrobox enter "${name}" -- touch /dev/null
+		# shellcheck disable=SC2086,2248
+		"${distrobox_path}"/distrobox enter ${root_flag} "${name}" -- touch /dev/null
 
 		IFS="¤"
-		for app in ${exported_apps}; do
-			app="$(echo "${app}" | tr -d '[:space:]')"
-			"${distrobox_path}"/distrobox enter "${name}" -- distrobox-export --app "${app}"
+		for apps in ${exported_apps}; do
+			# Split the string by spaces
+			IFS=" "
+			for app in ${apps}; do
+				# Export the app
+				# shellcheck disable=SC2086,2248
+				"${distrobox_path}"/distrobox enter ${root_flag} "${name}" -- distrobox-export --app "${app}"
+			done
 		done
 
 		IFS="¤"
-		for bin in ${exported_bins}; do
-			bin="$(echo "${bin}" | tr -d '[:space:]')"
-			"${distrobox_path}"/distrobox enter "${name}" -- distrobox-export --bin "${bin}" --export-path "${exported_bins_path}"
+		for bins in ${exported_bins}; do
+			# Split the string by spaces
+			IFS=" "
+			for bin in ${bins}; do
+				# Export the bin
+				# shellcheck disable=SC2086,2248
+				"${distrobox_path}"/distrobox enter ${root_flag} "${name}" -- distrobox-export --bin "${bin}" --export-path "${exported_bins_path}"
+			done
 		done
 	fi
 )
@@ -411,10 +425,7 @@ parse_file() (
 	file="${1}"
 	name=""
 
-	IFS='
-	'
-	# shellcheck disable=SC2013
-	for line in $(cat "${file}"); do
+	while IFS="" read -r line || [ -n "${line}" ]; do
 		if [ -z "${line}" ]; then
 			# blank line, skip
 			continue
@@ -456,12 +467,12 @@ parse_file() (
 		# Save options to tempfile, to source it later
 		touch "${tmpfile}"
 		if [ -n "${key}" ] && [ -n "${value}" ]; then
-			if grep -q "${key}=" "${tmpfile}"; then
+			if grep -q "^${key}=" "${tmpfile}"; then
 				value="$(echo "${value}" | sed "s|\"|\" \${${key}}¤|")"
 			fi
 			echo "${key}=${value}" >> "${tmpfile}"
 		fi
-	done
+	done < "${file}"
 	#	# Execute now one last time for the last block
 	run_distrobox "${name}"
 )

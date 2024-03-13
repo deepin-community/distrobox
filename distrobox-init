@@ -26,6 +26,10 @@
 
 trap '[ "$?" -ne 0 ] && printf "Error: An error occurred\n"' EXIT
 
+# Redirect stderr to stdout as podman by default logs stderr as priority 3 journald errors.
+# Github issue: https://github.com/containers/podman/issues/20728
+exec 2>&1
+
 HOST_MOUNTS_RO_INIT="
 	/etc/localtime
 	/run/systemd/journal
@@ -45,7 +49,7 @@ pre_init_hook=""
 rootful=0
 upgrade=0
 verbose=0
-version="1.6.0.1"
+version="1.7.0"
 # Print usage to stdout.
 # Arguments:
 #   None
@@ -385,6 +389,9 @@ for dep in ${dependencies}; do
 	! command -v "${dep}" > /dev/null && missing_packages=1 && break
 done
 
+# Ensure we have the least minimal path of standard Linux File System set
+PATH="${PATH}:/bin:/sbin:/usr/bin:/usr/sbin"
+
 # Check if dependencies are met for the script to run.
 if [ "${upgrade}" -ne 0 ] ||
 	[ "${missing_packages}" -ne 0 ] ||
@@ -398,6 +405,7 @@ if [ "${upgrade}" -ne 0 ] ||
 	if command -v apk; then
 		# If we need to upgrade, do it and exit, no further action required.
 		if [ "${upgrade}" -ne 0 ]; then
+			apk update
 			apk upgrade
 			exit
 		fi
@@ -407,62 +415,73 @@ if [ "${upgrade}" -ne 0 ] ||
 		if ! apk add "${shell_pkg}"; then
 			shell_pkg="bash"
 		fi
-		deps="
+		if apk add wolfi-base; then
+			deps="
+				busybox
+				gnutar
+				man-db
+				mesa
+				posix-libc-utils
+			"
+		elif apk add alpine-base; then
+			deps="
+				bash-completion
+				docs
+				gcompat
+				libc-utils
+				lsof
+				man-pages
+				mandoc
+				musl-utils
+				pinentry
+				sudo
+				tar
+				vte3
+				which
+				$(apk search -q mesa-dri)
+				$(apk search -q mesa-vulkan)
+			"
+		fi
+		deps="${deps:-}
 			${shell_pkg}
-			alpine-base
 			bash
-			bash-completion
 			bc
 			bzip2
 			coreutils
 			curl
 			diffutils
-			docs
 			findmnt
 			findutils
-			gcompat
 			gnupg
 			gpg
 			iproute2
 			iputils
 			keyutils
 			less
-			libc-utils
 			libcap
-			lsof
-			man-pages
-			mandoc
 			mount
-			musl-utils
 			ncurses
 			ncurses-terminfo
 			net-tools
 			openssh-client
 			pigz
-			pinentry
-			posix-libc-utils
 			procps
 			rsync
 			shadow
 			su-exec
-			sudo
-			tar
 			tcpdump
 			tree
 			tzdata
 			umount
 			unzip
 			util-linux
+			util-linux-login
 			util-linux-misc
-			vte3
+			vulkan-loader
 			wget
-			which
 			xauth
 			xz
 			zip
-			$(apk search -q mesa-dri)
-			$(apk search -q mesa-vulkan)
-			vulkan-loader
 		"
 		install_pkg=""
 		for dep in ${deps}; do
@@ -498,6 +517,8 @@ if [ "${upgrade}" -ne 0 ] ||
 		fi
 
 	elif command -v apt-get; then
+		export DEBIAN_FRONTEND=noninteractive
+
 		# If we need to upgrade, do it and exit, no further action required.
 		if [ "${upgrade}" -ne 0 ]; then
 			apt-get update
@@ -509,7 +530,6 @@ if [ "${upgrade}" -ne 0 ] ||
 		# So, let's enable them.
 		rm -f /etc/dpkg/dpkg.cfg.d/excludes
 
-		export DEBIAN_FRONTEND=noninteractive
 		apt-get update
 		# Check if shell_pkg is available in distro's repo. If not we
 		# fall back to bash, and we set the SHELL variable to bash so
@@ -627,6 +647,7 @@ if [ "${upgrade}" -ne 0 ] ||
 			bash-completion
 			bc
 			bzip2
+			cracklib-dicts
 			curl
 			diffutils
 			dnf-plugins-core
@@ -735,7 +756,7 @@ if [ "${upgrade}" -ne 0 ] ||
 		"
 		install_pkg=""
 		for dep in ${deps}; do
-			if [ "$(emerge --search "${dep}" | grep "Applications found" | grep -Eo "[0-9]")" -gt 0 ]; then
+			if [ "$(emerge --ask=n --search "${dep}" | grep "Applications found" | grep -Eo "[0-9]")" -gt 0 ]; then
 				# shellcheck disable=SC2086
 				install_pkg="${install_pkg} ${dep}"
 			fi
@@ -778,6 +799,7 @@ EOF
 			bash-completion
 			bc
 			bzip2
+			cracklib-dicts
 			diffutils
 			dnf-plugins-core
 			findutils
@@ -844,7 +866,7 @@ EOF
 		# images blank the zoneinfo directory, so we reinstall the package to
 		# ensure population
 		if [ ! -e /usr/share/zoneinfo/UTC ]; then
-			microdnf reinstall -y tzdata
+			microdnf reinstall -y tzdata || microdnf install -y tzdata
 		fi
 
 		# Install additional packages passed at distrbox-create time
@@ -1371,15 +1393,39 @@ if ! command -v xdg-open; then
 fi
 ###############################################################################
 
+# Ensure compatibility with older versions of su, this will allow to specify
+# the --pty flag
+#
+# This won't work well on very old distros with no flag support, but will give
+# an usable shell nonetheless
+if ! su --help | grep -q pty; then
+	cat << EOF > /usr/local/bin/su
+#!/bin/sh
+
+for i do
+  [ "\$i" = --pty ] || set -- "\$@" "\$i"
+  shift
+done
+
+/bin/su "\$@"
+EOF
+	chmod +x /usr/local/bin/su
+fi
+
 ###############################################################################
 printf "distrobox: Setting up devpts mounts...\n"
+
+# First we need to ensure we have a tty group to assign /dev/pts to
+if ! grep -q tty /etc/group; then
+	printf "%s" 'tty:x:5:' >> /etc/group
+fi
 
 # Instantiate a new /dev/pts mount, this will ensure pseudoterminals are container-scoped
 # and make easier in case of initful containers to have a separate /dev/console
 #
 # Podman supports a mount option to do this at creation time, but we're doing it
 # here to support also other container rmanagers which does not support that flag
-mount -t devpts devpts -o noexec,nosuid,newinstance,ptmxmode=0666,mode=0620 /dev/pts/
+mount -t devpts devpts -o noexec,nosuid,newinstance,ptmxmode=0666,mode=0620,gid=tty /dev/pts/
 mount --bind /dev/pts/ptmx /dev/ptmx
 
 # Change mount propagation to shared to make the environment more similar to a
@@ -1397,7 +1443,7 @@ HOST_MOUNTS_RO="
 	/var/log/journal"
 for host_mount_ro in ${HOST_MOUNTS_RO}; do
 	# Mounting read-only in a user namespace will trigger a check to see if certain
-	# "locked" flags are changed. This ensures we explicitly reuse those flags.
+	# "locked" flags (line noexec,nodev,nosuid) are changed. This ensures we explicitly reuse those flags.
 	locked_flags="$(get_locked_mount_flags /run/host"${host_mount_ro}")"
 	mount_bind /run/host"${host_mount_ro}" "${host_mount_ro}" ro"${locked_flags:+,${locked_flags}}"
 done
@@ -1478,6 +1524,16 @@ done
 if [ "${nvidia}" -eq 1 ]; then
 	printf "distrobox: Setting up host's nvidia integration...\n"
 
+	# Refresh ldconfig cache, also detect if there are empty files remaining
+	# and clean them.
+	# This could happen when upgrading drivers and changing versions.
+	empty_libs="$(ldconfig 2>&1 | grep -Eo "File.*is empty" | cut -d' ' -f2)"
+	if [ -n "${empty_libs}" ]; then
+		# shellcheck disable=SC2086
+		find ${empty_libs} -exec sh -c 'rm -rf "$1" || umount "$1" && rm -rf "$1"' sh {} ';' || :
+		find /usr/ /etc/ -empty -iname "*nvidia*" -exec sh -c 'rm -rf "$1" || umount "$1" && rm -rf "$1"' sh {} ';' || :
+	fi
+
 	# Find where the system expects libraries to be put
 	lib32_dir="/usr/lib/"
 	lib64_dir="/usr/lib/"
@@ -1503,11 +1559,15 @@ if [ "${nvidia}" -eq 1 ]; then
 		-path "/run/host/usr/lib/x86_64-linux-gnu/*" -prune -o \
 		-path "/run/host/usr/lib32/*" -prune -o \
 		-path "/run/host/usr/lib64/*" -prune -o \
+		-path "/run/host/usr/lib/*" -prune -o \
 		-iname "*nvidia*" -not -type d -print 2> /dev/null || :)"
 	for nvidia_file in ${NVIDIA_FILES}; do
 		dest_file="$(printf "%s" "${nvidia_file}" | sed 's|/run/host||g')"
 
-		mount_bind "${nvidia_file}" "${dest_file}" ro
+		# Mounting read-only in a user namespace will trigger a check to see if certain
+		# "locked" flags (line noexec,nodev,nosuid) are changed. This ensures we explicitly reuse those flags.
+		locked_flags="$(get_locked_mount_flags "${nvidia_file}")"
+		mount_bind "${nvidia_file}" "${dest_file}" ro"${locked_flags:+,${locked_flags}}"
 	done
 
 	# Then we find all directories with nvidia in the name and just mount them
@@ -1527,7 +1587,10 @@ if [ "${nvidia}" -eq 1 ]; then
 			dest_dir="$(printf "%s" "${nvidia_dir}" | sed 's|/run/host||g')"
 		fi
 
-		mount_bind "${nvidia_dir}" "${dest_dir}" ro
+		# Mounting read-only in a user namespace will trigger a check to see if certain
+		# "locked" flags (line noexec,nodev,nosuid) are changed. This ensures we explicitly reuse those flags.
+		locked_flags="$(get_locked_mount_flags "${nvidia_dir}")"
+		mount_bind "${nvidia_dir}" "${dest_dir}" ro"${locked_flags:+,${locked_flags}}"
 	done
 
 	# Then we find all the ".so" libraries, there are searched separately
@@ -1567,22 +1630,21 @@ if [ "${nvidia}" -eq 1 ]; then
 
 		if [ "${type}" = "link" ]; then
 			mkdir -p "$(dirname "${dest_file}")"
-			cp -d "${nvidia_lib}" "${dest_file}"
+			if [ "$(md5sum "${nvidia_lib}" | cut -d ' ' -f 1)" != "$(md5sum "${dest_file}" | cut -d ' ' -f 1)" ]; then
+				cp -d "${nvidia_lib}" "${dest_file}"
+			fi
 			continue
 		fi
 
-		mount_bind "${nvidia_lib}" "${dest_file}" ro
+		# Mounting read-only in a user namespace will trigger a check to see if certain
+		# "locked" flags (line noexec,nodev,nosuid) are changed. This ensures we explicitly reuse those flags.
+		locked_flags="$(get_locked_mount_flags "${nvidia_lib}")"
+		mount_bind "${nvidia_lib}" "${dest_file}" ro"${locked_flags:+,${locked_flags}}"
 	done
 
-	# Refresh ldconfig cache, also detect if there are empty files remaining
-	# and clean them.
-	# This could happen when upgrading drivers and changing versions.
-	empty_libs="$(ldconfig 2>&1 | grep -Eo "File.*is empty" | cut -d' ' -f2)"
-	if [ -n "${empty_libs}" ]; then
-		# shellcheck disable=SC2086
-		find ${empty_libs} -delete 2> /dev/null || :
-		find /usr/ /etc/ -empty -iname "*nvidia*" -delete 2> /dev/null || :
-	fi
+	# Refresh ldconfig cache
+	ldconfig 2>&1 /dev/null
+
 fi
 
 ###############################################################################
@@ -1630,6 +1692,7 @@ EOF
 fi
 
 if { [ -d "/etc/dpkg/dpkg.cfg.d/" ] || [ -d "/usr/share/libalpm/scripts" ]; } && [ "${init}" -eq 0 ]; then
+	printf "distrobox: Setting up package manager hooks...\n"
 	cat << EOF > /etc/distrobox-pre-hook.sh
 #!/bin/sh
 mounts="${HOST_MOUNTS_RO_INIT}"
@@ -1713,7 +1776,7 @@ fi
 ###############################################################################
 
 ###############################################################################
-printf  "distrobox: Setting up distrobox profile...\n"
+printf "distrobox: Setting up distrobox profile...\n"
 
 # This ensures compatibility with prompts and tools between toolbx and distrobox
 touch /run/.toolboxenv
@@ -1723,10 +1786,16 @@ touch /run/.toolboxenv
 # Ensure we copy only if the dotfile is not already present.
 mkdir -p /etc/profile.d
 cat << EOF > /etc/profile.d/distrobox_profile.sh
-test -z "\$USER" && USER="\$(id -un 2> /dev/null)"
-test -z "\$UID"  && readonly  UID="\$(id -ur 2> /dev/null)"
+test -z "\$USER" && export USER="\$(id -un 2> /dev/null)"
+test -z "\$UID"  && readonly UID="\$(id -ur 2> /dev/null)"
 test -z "\$EUID" && readonly EUID="\$(id -u  2> /dev/null)"
 export SHELL="\$(getent passwd "\${USER}" | cut -f 7 -d :)"
+
+# Ensure we have these two variables from the host, so that graphical apps
+# also work in case we use a login session
+test -z \$DISPLAY && export DISPLAY="\$(host-spawn sh -c "echo \\\$DISPLAY")"
+test -z \$XAUTHORITY && export XAUTHORITY="\$(host-spawn sh -c "echo \\\$XAUTHORITY")"
+test -z \$XAUTHLOCALHOSTNAME && export XAUTHLOCALHOSTNAME="\$(host-spawn sh -c "echo \\\$XAUTHLOCALHOSTNAME")"
 
 # This will ensure a default prompt for a container, this will be remineshent of
 # toolbx prompt: https://github.com/containers/toolbox/blob/main/profile.d/toolbox.sh#L47
@@ -1748,12 +1817,17 @@ EOF
 
 # It's also importanto to keep this working on fish shells
 if [ -e "/etc/fish/config.fish" ]; then
-	cat << EOF >> /etc/fish/conf.d/config.fish
-test -z "\$USER" && set -Ux USER "\$(id -un 2> /dev/null)"
-test -z "\$UID"  && set -Ux UID "\$(id -ur 2> /dev/null)"
-test -z "\$EUID" && set -Ux EUID "\$(id -u  2> /dev/null)"
-test -z "\$MARONNE" && set -Ux MARONNE "\$(id -u  2> /dev/null)"
-set -Ux SHELL "\$(getent passwd "\$USER" | cut -f 7 -d :)"
+	cat << EOF > /etc/fish/conf.d/distrobox_config.fish
+test -z "\$USER" && set -gx USER (id -un 2> /dev/null)
+test -z "\$UID"  && set -gx UID (id -ur 2> /dev/null)
+test -z "\$EUID" && set -gx EUID (id -u  2> /dev/null)
+set -gx SHELL (getent passwd "\$USER" | cut -f 7 -d :)
+
+# Ensure we have these two variables from the host, so that graphical apps
+# also work in case we use a login session
+test -z \$DISPLAY && set -gx DISPLAY (host-spawn sh -c "echo \\\$DISPLAY")
+test -z \$XAUTHORITY && set -gx XAUTHORITY (host-spawn sh -c "echo \\\$XAUTHORITY")
+test -z \$XAUTHLOCALHOSTNAME && set -gx XAUTHLOCALHOSTNAME (host-spawn sh -c "echo \\\$XAUTHLOCALHOSTNAME")
 
 # This will ensure we have a first-shell password setup for an user if needed.
 # We're going to use this later in case of rootful containers
@@ -1768,8 +1842,8 @@ fi
 ###############################################################################
 
 ###############################################################################
-printf  "distrobox: Setting up sudo...\n"
-mkdir  -p /etc/sudoers.d
+printf "distrobox: Setting up sudo...\n"
+mkdir -p /etc/sudoers.d
 # Ensure we're using the user's password for sudo, not root
 if [ -e /etc/sudoers ]; then
 	sed -i "s|^Defaults targetpw.*||g" /etc/sudoers
@@ -1778,11 +1852,28 @@ fi
 # Do not check fqdn when doing sudo, it will not work anyways
 # Also allow canonical groups to use sudo
 cat << EOF > /etc/sudoers.d/sudoers
+Defaults !targetpw
 Defaults !fqdn
 %wheel ALL=(ALL:ALL) ALL
 %sudo ALL=(ALL:ALL) ALL
 %root ALL=(ALL:ALL) ALL
 EOF
+
+# PAM config for "su" command
+if [ ! -e /etc/pam.d/su ]; then
+	mkdir -p /etc/pam.d
+	cat << EOF > /etc/pam.d/su
+auth            sufficient      pam_rootok.so
+auth            required        pam_unix.so
+account	        required        pam_unix.so
+session         required        pam_unix.so
+-session        optional        pam_systemd.so
+EOF
+fi
+
+if ! grep -q "pam_systemd.so" /etc/pam.d/su; then
+	printf "%s" '-session   optional   pam_systemd.so' >> /etc/pam.d/su
+fi
 
 # If we're running this script as root in a login shell (sudoless), we don't
 # have to bother setting up sudo.
@@ -1796,7 +1887,7 @@ fi
 ###############################################################################
 
 ###############################################################################
-printf "distrobox: Setting up groups...\n"
+printf "distrobox: Setting up user groups...\n"
 # If not existing, ensure we have a group for our user.
 if ! grep -q "^${container_user_name}:" /etc/group; then
 	if ! groupadd --force --gid "${container_user_gid}" "${container_user_name}"; then
@@ -1808,8 +1899,8 @@ fi
 ###############################################################################
 
 ###############################################################################
-printf "distrobox: Setting up users...\n"
 
+printf "distrobox: Setting up kerberos integration...\n"
 # Setup kerberos integration with the host
 if [ -d "/run/host/var/kerberos" ] &&
 	[ -d "/etc/krb5.conf.d" ] &&
@@ -1822,6 +1913,7 @@ if [ -d "/run/host/var/kerberos" ] &&
 EOF
 fi
 
+printf "distrobox: Setting up user's group list...\n"
 # If we have sudo/wheel groups, let's add the user to them.
 # and ensure that user's in those groups can effectively sudo
 additional_groups=""
@@ -1850,6 +1942,7 @@ fi
 # shellcheck disable=SC1003
 if ! grep -q "^$(printf '%s' "${container_user_name}" | tr '\\' '.'):" /etc/passwd &&
 	! getent passwd "${container_user_uid}"; then
+	printf "distrobox: Adding user...\n"
 	if ! useradd \
 		--home-dir "${container_user_home}" \
 		--no-create-home \
@@ -1880,6 +1973,7 @@ elif [ ! -e /etc/passwd.done ]; then
 		user_to_modify=$(getent passwd "${container_user_uid}" | cut -d: -f1)
 	fi
 
+	printf "distrobox: Setting up existing user...\n"
 	if ! usermod \
 		--home "${container_user_home}" \
 		--shell "${SHELL:-"/bin/bash"}" \
@@ -1892,6 +1986,7 @@ elif [ ! -e /etc/passwd.done ]; then
 		printf "There was a problem setting up the user with usermod, trying manual addition\n"
 
 		# Modify the user
+		printf "distrobox: Setting up existing user: /etc/passwd...\n"
 		sed -i "s|^${container_user_name}.*||g" /etc/passwd
 		printf "%s:x:%s:%s:%s:%s:%s" \
 			"${container_user_name}" "${container_user_uid}" \
@@ -1900,6 +1995,7 @@ elif [ ! -e /etc/passwd.done ]; then
 
 		# Add or modify the default group
 		# and add or modify the additional groups
+		printf "distrobox: Setting up existing user: /etc/group...\n"
 		for group in ${container_user_name} ${additional_groups}; do
 			# Check if we have the user in the group
 			if ! grep -q "^${group}.*${container_user_name}.*" /etc/group; then
@@ -1916,6 +2012,7 @@ elif [ ! -e /etc/passwd.done ]; then
 fi
 
 # Ensure we have our home correctly set, in case of cloned containers or whatnot
+printf "distrobox: Setting up user home...\n"
 if [ "$(getent passwd "${container_user_name}" | cut -d: -f6)" != "${container_user_home}" ]; then
 	if ! usermod -d "${container_user_home}" "${container_user_name}"; then
 		sed -i "s|^${container_user_name}.*|${container_user_name}:x:${container_user_uid}:${container_user_gid}::${container_user_home}:${SHELL:-"/bin/bash"}|g" /etc/passwd
@@ -1923,15 +2020,20 @@ if [ "$(getent passwd "${container_user_name}" | cut -d: -f6)" != "${container_u
 fi
 
 # If we're rootless, delete password for root and user
-if  [ ! -e /etc/passwd.done ]; then
-	temporary_password="$(cat /proc/sys/kernel/random/uuid)"
+printf "distrobox: Ensuring user's access...\n"
+if [ ! -e /etc/passwd.done ]; then
+	temporary_password="$(md5sum < /proc/sys/kernel/random/uuid | cut -d' ' -f1)"
 	# We generate a random password to initialize the entry for the user.
 	printf "%s:%s" "${container_user_name}" "${temporary_password}" | chpasswd -e
 	printf "%s:" "${container_user_name}" | chpasswd -e
 
 	if [ "${rootful}" -eq 0 ]; then
 		# We're rootless so we don't care about account password, so we remove it
-		printf "%s\n%s\n" "${temporary_password}" "${temporary_password}" | passwd root
+		passwd_cmd=passwd
+		if passwd --help 2>&1 | grep -q -- --stdin; then
+			passwd_cmd="passwd --stdin"
+		fi
+		printf "%s\n%s\n" "${temporary_password}" "${temporary_password}" | ${passwd_cmd} root
 		printf "%s:" "root" | chpasswd -e
 	else
 		# We're rootful, so we don't want passwordless accounts, so we lock them
@@ -1965,13 +2067,13 @@ if [ "${rootful}" -eq 1 ] &&
 fi
 
 # Now we're done
-touch  /etc/passwd.done
+touch /etc/passwd.done
 ###############################################################################
 
 ###############################################################################
-printf "distrobox: Setting up skel...\n"
-
 if [ -n "${DISTROBOX_HOST_HOME-}" ] && [ -d "/etc/skel" ]; then
+	printf "distrobox: Setting up skel...\n"
+
 	skel_files="$(find /etc/skel/ -type f || :)"
 	for skel_file in ${skel_files}; do
 		base_file_name=$(basename "${skel_file}")
@@ -1986,10 +2088,9 @@ if [ -n "${DISTROBOX_HOST_HOME-}" ] && [ -d "/etc/skel" ]; then
 		if [ ! -f "${container_user_home}/${file_path_for_home:+"${file_path_for_home}"/}${base_file_name}" ] &&
 			[ ! -L "${container_user_home}/${file_path_for_home:+"${file_path_for_home}"/}${base_file_name}" ]; then
 			cp "${skel_file}" "${container_user_home}/${file_path_for_home:+"${file_path_for_home}"/}${base_file_name}"
-			chown "${container_user_uid}":"${container_user_gid}" \
-				"${container_user_home}/${file_path_for_home:+"${file_path_for_home}"/}${base_file_name}"
 		fi
 	done
+	chown -R "${container_user_uid}":"${container_user_gid}" "${container_user_home}/${file_path_for_home:+"${file_path_for_home}"/}"
 fi
 ###############################################################################
 
@@ -2078,16 +2179,16 @@ fi
 # Instantiate a new pty to mount over /dev/console
 # this way we will have init output right of the logs
 [ -e /dev/console ] || touch /dev/console
-rm  -f /var/console
-mkfifo  /var/console
-script  -c "cat /var/console" /dev/null &
+rm -f /var/console
+mkfifo /var/console
+script -c "cat /var/console" /dev/null &
 
 # Ensure the pty is created
-sleep  0.5
+sleep 0.5
 
 # Mount the created pty over /dev/console in order to have systemd logs
 # right into container logs
-if  ! mount --bind /dev/pts/0 /dev/console; then
+if ! mount --bind /dev/pts/0 /dev/console; then
 	# Fallback to older behaviour or fake plaintext file in case it fails
 	# this ensures rootful + initful boxes do not interfere with host's /dev/console
 	rm -f /var/console
@@ -2144,6 +2245,25 @@ fi
 #
 # This will ensure the basic integration for x11/wayland/pipewire/keyring
 if [ -e /usr/lib/systemd/system/user@.service ]; then
+	cat << EOF > /usr/local/bin/user-integration
+#!/bin/sh
+sleep 1
+ln -sf /run/host/run/user/\$(id -ru)/wayland-* /run/user/\$(id -ru)/
+ln -sf /run/host/run/user/\$(id -ru)/pipewire-* /run/user/\$(id -ru)/
+find /run/host/run/user/\$(id -ru)/ -maxdepth 1 -type f -exec sh -c 'grep -qlE COOKIE \$0 && ln -sf \$0 /run/user/\$(id -ru)/\$(basename \$0)' {} \;
+mkdir -p /run/user/\$(id -ru)/app && ln -sf /run/host/run/user/\$(id -ru)/app/* /run/user/\$(id -ru)/app/
+mkdir -p /run/user/\$(id -ru)/at-spi && ln -sf /run/host/run/user/\$(id -ru)/at-spi/* /run/user/\$(id -ru)/at-spi/
+mkdir -p /run/user/\$(id -ru)/dbus-1 && ln -sf /run/host/run/user/\$(id -ru)/dbus-1/* /run/user/\$(id -ru)/dbus-1/
+mkdir -p /run/user/\$(id -ru)/dconf && ln -sf /run/host/run/user/\$(id -ru)/dconf/* /run/user/\$(id -ru)/dconf/
+mkdir -p /run/user/\$(id -ru)/gnupg && ln -sf /run/host/run/user/\$(id -ru)/gnupg/* /run/user/\$(id -ru)/gnupg/
+mkdir -p /run/user/\$(id -ru)/keyring && ln -sf /run/host/run/user/\$(id -ru)/keyring/* /run/user/\$(id -ru)/keyring/
+mkdir -p /run/user/\$(id -ru)/p11-kit && ln -sf /run/host/run/user/\$(id -ru)/p11-kit/* /run/user/\$(id -ru)/p11-kit/
+mkdir -p /run/user/\$(id -ru)/pulse && ln -sf /run/host/run/user/\$(id -ru)/pulse/* /run/user/\$(id -ru)/pulse/
+find /run/user/\$(id -ru) -maxdepth 2 -xtype l -delete
+EOF
+
+	chmod +x /usr/local/bin/user-integration
+
 	cat << EOF > /usr/lib/systemd/system/user-integration@.service
 [Unit]
 Description=User runtime integration for UID %i
@@ -2153,19 +2273,7 @@ Requires=user-runtime-dir@%i.service
 [Service]
 User=%i
 Type=oneshot
-ExecStart=/bin/sh -c "sleep 1; \
-	ln -sf /run/host/run/user/\$(id -ru)/wayland-* /run/user/\$(id -ru)/ ; \
-	ln -sf /run/host/run/user/\$(id -ru)/pipewire-* /run/user/\$(id -ru)/ ; \
-	for f in \$(find /run/host/run/user/\$(id -ru)/ -maxdepth 1 -type f -exec grep -lE 'ICE|COOKIE' {} \;); do ln -sf \$f /run/user/\$(id -ru)/\$(basename \$f) ; done ; \
-	mkdir -p /run/user/\$(id -ru)/app && ln -sf /run/host/run/user/\$(id -ru)/app/* /run/user/\$(id -ru)/app/ ; \
-	mkdir -p /run/user/\$(id -ru)/at-spi && ln -sf /run/host/run/user/\$(id -ru)/at-spi/* /run/user/\$(id -ru)/at-spi/ ; \
-	mkdir -p /run/user/\$(id -ru)/dbus-1 && ln -sf /run/host/run/user/\$(id -ru)/dbus-1/* /run/user/\$(id -ru)/dbus-1/ ; \
-	mkdir -p /run/user/\$(id -ru)/dconf && ln -sf /run/host/run/user/\$(id -ru)/dconf/* /run/user/\$(id -ru)/dconf/ ; \
-	mkdir -p /run/user/\$(id -ru)/gnupg && ln -sf /run/host/run/user/\$(id -ru)/gnupg/* /run/user/\$(id -ru)/gnupg/ ; \
-	mkdir -p /run/user/\$(id -ru)/keyring && ln -sf /run/host/run/user/\$(id -ru)/keyring/* /run/user/\$(id -ru)/keyring/ ; \
-	mkdir -p /run/user/\$(id -ru)/p11-kit && ln -sf /run/host/run/user/\$(id -ru)/p11-kit/* /run/user/\$(id -ru)/p11-kit/ ; \
-	mkdir -p /run/user/\$(id -ru)/pulse && ln -sf /run/host/run/user/\$(id -ru)/pulse/* /run/user/\$(id -ru)/pulse/ ; \
-	find /run/user/\$(id -ru) -maxdepth 2 -xtype l -delete"
+ExecStart=/usr/local/bin/user-integration
 
 Slice=user-%i.slice
 EOF
@@ -2175,18 +2283,19 @@ fi
 printf "distrobox: Firing up init system...\n"
 
 if [ -e /usr/lib/systemd/systemd ] || [ -e /lib/systemd/systemd ]; then
-	printf "container_setup_done\n"
-
 	# Start user Systemd unit, this will attempt until Systemd is ready
-	sh -c "while true; do \
-		sleep 1; \
-		systemctl start user@${container_user_name}.service 2>/dev/null && \
-		systemctl start user-integration@${container_user_name}.service 2>/dev/null && \
-		exit 0; \
-	done" &
+	sh -c "	sleep 1 && while true; do \
+	    systemctl is-system-running | grep -E 'running|degraded' && break; \
+	    echo 'waiting for systemd to come up...\n' && sleep 1; \
+	done && \
+	systemctl start user@${container_user_name}.service && \
+	systemctl start user-integration@${container_user_name}.service && \
+	loginctl enable-linger ${container_user_name} || : && \
+	echo container_setup_done" &
 
 	[ -e /usr/lib/systemd/systemd ] && exec /usr/lib/systemd/systemd --system --log-target=console --unit=multi-user.target
 	[ -e /lib/systemd/systemd ] && exec /lib/systemd/systemd --system --log-target=console --unit=multi-user.target
+
 elif [ -e /sbin/init ]; then
 	printf "container_setup_done\n"
 

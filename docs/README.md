@@ -5,13 +5,12 @@
 <sub>previous logo credits [j4ckr3d](https://github.com/j4ckr3d)  
 current logo credits [David Lapshin](https://github.com/daudix-UFO)<sub>
 
-![Lint](https://github.com/89luca89/distrobox/actions/workflows/main.yml/badge.svg)
+[![Lint](https://github.com/89luca89/distrobox/actions/workflows/main.yml/badge.svg)](https://github.com/89luca89/distrobox/actions/workflows/main.yml)
 [![CI](https://github.com/89luca89/distrobox/actions/workflows/compatibility.yml/badge.svg)](https://github.com/89luca89/distrobox/actions/workflows/compatibility.yml)
 [![GitHub](https://img.shields.io/github/license/89luca89/distrobox?color=blue)](../COPYING.md)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/89luca89/distrobox)](https://github.com/89luca89/distrobox/releases/latest)
 [![Packaging status](https://repology.org/badge/tiny-repos/distrobox.svg)](https://repology.org/project/distrobox/versions)
-[![Github issue needs help](https://img.shields.io/github/issues-raw/89luca89/distrobox/help%20wanted?color=blue&label=Help%20Wanted%20Issues)](https://github.com/89luca89/distrobox/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-[![GitHub issues by-label](https://img.shields.io/github/issues-raw/89luca89/distrobox/bug?color=red&label=Open%20Bug%20Reports)](https://github.com/89luca89/distrobox/issues?q=is%3Aissue+is%3Aopen+label%3A%22bug%22)
+[![GitHub issues by-label](https://img.shields.io/github/issues-search/89luca89/distrobox?query=is%3Aissue%20is%3Aopen%20label%3Abug%20-label%3Await-on-user%20&label=Open%20Bug%20Reports&color=red)](https://github.com/89luca89/distrobox/issues?q=is%3Aissue+is%3Aopen+label%3Abug+-label%3Await-on-user)
 
 Use any Linux distribution inside your terminal. Enable both backward and forward
 compatibility with software and freedom to use whatever distribution you’re more
@@ -34,6 +33,10 @@ graphical apps (X11/Wayland), and audio.
 ![overview](https://user-images.githubusercontent.com/598882/144294862-f6684334-ccf4-4e5e-85f8-1d66210a0fff.png)
 
 ---
+
+> [!WARNING]  
+> Documentation on Github strictly refers to the code in the main branch. For the official documentation
+> Head over [https://distrobox.it](https://distrobox.it)
 
 - [Distrobox](#distrobox)
   - [What it does](#what-it-does)

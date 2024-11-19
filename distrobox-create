@@ -32,6 +32,7 @@
 #	DBX_CONTAINER_HOSTNAME
 #	DBX_CONTAINER_GENERATE_ENTRY
 #	DBX_NON_INTERACTIVE
+#	DBX_VERBOSE
 #	DBX_SUDO_PROGRAM
 
 # Despite of running this script via SUDO/DOAS being not supported (the
@@ -40,11 +41,18 @@
 # containers.
 #
 # SUDO_USER is a variable set by SUDO and can be used to check whether the script was called by it. Same thing for DOAS_USER, set by DOAS.
-if { [ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]; } && [ "$(id -ru)" -eq 0 ]; then
+if {
+	[ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]
+} && [ "$(id -ru)" -eq 0 ]; then
 	printf >&2 "Running %s via SUDO/DOAS is not supported. Instead, please try running:\n" "$(basename "${0}")"
 	printf >&2 "  %s --root %s\n" "$(basename "${0}")" "$*"
 	exit 1
 fi
+
+# Ensure we have our env variables correctly set
+[ -z "${USER}" ] && USER="$(id -run)"
+[ -z "${HOME}" ] && HOME="$(getent passwd "${USER}" | cut -d':' -f6)"
+[ -z "${SHELL}" ] && SHELL="$(getent passwd "${USER}" | cut -d':' -f7)"
 
 # Defaults
 container_additional_packages=""
@@ -54,7 +62,7 @@ container_clone=""
 container_generate_entry=1
 container_home_prefix=""
 container_image=""
-container_image_default="registry.fedoraproject.org/fedora-toolbox:39"
+container_image_default="registry.fedoraproject.org/fedora-toolbox:latest"
 container_init_hook=""
 container_manager="autodetect"
 container_manager_additional_flags=""
@@ -96,7 +104,7 @@ distrobox_hostexec_path="$(cd "$(dirname "${0}")" && pwd)/distrobox-host-exec"
 # There's no need for them to pass the --root flag option in such cases.
 [ "${container_user_uid}" -eq 0 ] && rootful=1 || rootful=0
 verbose=0
-version="1.7.0"
+version="1.8.0"
 
 app_cache_dir=${XDG_CACHE_HOME:-"${HOME}/.cache"}/distrobox
 
@@ -142,23 +150,29 @@ fi
 [ -n "${DBX_CONTAINER_MANAGER}" ] && container_manager="${DBX_CONTAINER_MANAGER}"
 [ -n "${DBX_CONTAINER_NAME}" ] && container_name="${DBX_CONTAINER_NAME}"
 [ -n "${DBX_CONTAINER_HOSTNAME}" ] && container_hostname="${DBX_CONTAINER_HOSTNAME}"
-[ -n "${DBX_NON_INTERACTIVE}" ] && non_interactive="${DBX_NON_INTERACTIVE}"
 [ -n "${DBX_CONTAINER_GENERATE_ENTRY}" ] && container_generate_entry="${DBX_CONTAINER_GENERATE_ENTRY}"
+[ -n "${DBX_NON_INTERACTIVE}" ] && non_interactive="${DBX_NON_INTERACTIVE}"
 [ -n "${DBX_VERBOSE}" ] && verbose="${DBX_VERBOSE}"
 
 # Fixup variable=[true|false], in case we find it in the config file(s)
 [ "${non_interactive}" = "true" ] && non_interactive=1
 [ "${non_interactive}" = "false" ] && non_interactive=0
-# Fixup variable=[true|false], in case we find it in the config file(s)
 [ "${verbose}" = "true" ] && verbose=1
 [ "${verbose}" = "false" ] && verbose=0
 
-# Print usage to stdout.
+# show_help will print usage to stdout.
 # Arguments:
+#   None
+# Expected global variables:
+#   version: string distrobox version
+#   container_image_default: string default container image to use
+#   container_name_default:  string default container name to use
+# Expected env variables:
 #   None
 # Outputs:
 #   print usage with examples.
-show_help() {
+show_help()
+{
 	cat << EOF
 distrobox version: ${version}
 
@@ -170,7 +184,7 @@ Usage:
 	distrobox create -i docker.io/almalinux/8-init --init --name test --pre-init-hooks "dnf config-manager --enable powertools && dnf -y install epel-release"
 	distrobox create --clone fedora-39 --name fedora-39-copy
 	distrobox create --image alpine my-alpine-container
-	distrobox create --image registry.fedoraproject.org/fedora-toolbox:39 --name fedora-toolbox-39
+	distrobox create --image registry.fedoraproject.org/fedora-toolbox:latest --name fedora-toolbox-latest
 	distrobox create --pull --image centos:stream9 --home ~/distrobox/centos9
 	distrobox create --image alpine:latest --name test2 --additional-packages "git tmux vim"
 	distrobox create --image ubuntu:22.04 --name ubuntu-nvidia --nvidia
@@ -181,7 +195,7 @@ Options:
 
 	--image/-i:		image to use for the container	default: ${container_image_default}
 	--name/-n:		name for the distrobox          default: ${container_name_default}
-	--hostname:		hostname for the distrobox      default: <container-name>.$(uname -n)
+	--hostname:		hostname for the distrobox      default: $(uname -n)
 	--pull/-p:		pull the image even if it exists locally (implies --yes)
 	--yes/-Y:		non-interactive, pull images without asking
 	--root/-r:		launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
@@ -194,8 +208,8 @@ Options:
 	--volume:		additional volumes to add to the container
 	--additional-flags/-a:	additional flags to pass to the container manager command
 	--additional-packages/-ap:	additional packages to install during initial container setup
-	--init-hooks:		additional commands to execute during container initialization
-	--pre-init-hooks:	additional commands to execute prior to container initialization
+	--init-hooks:		additional commands to execute at the end of container initialization
+	--pre-init-hooks:	additional commands to execute at the start of container initialization
 	--init/-I:		use init system (like systemd) inside the container.
 				this will make host's processes not visible from within the container. (assumes --unshare-process)
 				may require additional packages depending on the container image: https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
@@ -225,12 +239,18 @@ Compatibility:
 EOF
 }
 
-# Print list of compatible images to stdou, caching locally in a file.
+# show_compatibility will print the list of compatible images to stdout, caching locally in a file.
 # Arguments:
+#   None
+# Expected global variables:
+#   app_cache_dir: cache dir to write to
+#   version:       distrobox version
+# Expected env variables:
 #   None
 # Outputs:
 #   print usage with examples.
-show_compatibility() {
+show_compatibility()
+{
 	if [ ! -e "${app_cache_dir}/distrobox-compatibility-${version}" ] ||
 		[ ! -s "${app_cache_dir}/distrobox-compatibility-${version}" ]; then
 		mkdir -p "${app_cache_dir}"
@@ -354,7 +374,8 @@ while :; do
 			;;
 		-H | --home)
 			if [ -n "$2" ]; then
-				container_user_custom_home="$2"
+				# Remove trailing slashes
+				container_user_custom_home="$(echo "$2" | sed 's:/*$::')"
 				shift
 				shift
 			fi
@@ -463,7 +484,11 @@ fi
 
 # set the container hostname to default value
 if [ -z "${container_hostname}" ]; then
-	container_hostname="${container_name}.$(uname -n)"
+	container_hostname="$(uname -n)"
+
+	if [ "${unshare_netns}" -eq 1 ]; then
+		container_hostname="${container_name}.${container_hostname}"
+	fi
 fi
 
 # check if container hostname is less than 64 chars to prevent issues
@@ -540,12 +565,26 @@ if [ -n "${container_additional_volumes}" ]; then
 	done
 fi
 
-# Clone a container as a snapshot.
+# Check that we have a complete distrobox installation or
+# entrypoint and export will not work.
+if [ -z "${distrobox_entrypoint_path}" ] || [ -z "${distrobox_export_path}" ]; then
+	printf >&2 "Error: no distrobox-init found in %s\n" "${PATH}"
+	exit 127
+fi
+
+# get_clone_image will return the image name of a cloned existing container taken
+# as input.
 # Arguments:
+#   None
+# Expected global variables:
+#   container_manager: string container manager to use
+#   container_clone: string container name to clone
+# Expected env variables:
 #   None
 # Outputs:
 #   prints the image name of the newly cloned container
-clone_container() {
+get_clone_image()
+{
 	# We need to clone a container.
 	# to do this we will commit the container and create a new tag. Then use it
 	# as image for the new container.
@@ -581,12 +620,38 @@ clone_container() {
 	return 0
 }
 
-# Generate Podman or Docker command to execute.
+# generate_create_command will produce a Podman or Docker command to execute.
 # Arguments:
+#   None
+# Expected global variables:
+#   container_manager: string container manager to use
+#   container_name: string container name
+#   container_image: string container image
+#   container_manager_additional_flags: string container manager additional flags to use
+#   container_hostname: string container hostname
+#   container_additional_packages: string additional packages
+#   container_pre_init_hook: string pre init hooks
+#   container_init_hook: string init hooks
+#   container_user_home: string user's home path
+#   container_user_name: string user's username
+#   container_user_uid: string user's UID
+#   container_user_gid: string user's GID
+#   container_home_prefix: string container's custom home prefix
+#   container_user_custom_home: string container's custom home path
+#   init: bool initful
+#   nvidia: bool nvidia integration
+#   rootful: bool rootful
+#   unshare_devsys: bool unshare devsys
+#   unshare_groups: bool unshare groups
+#   unshare_ipc: bool unshare ipc
+#   unshare_netns: bool unshare netns
+#   unshare_process: bool unshare proc
+# Expected env variables:
 #   None
 # Outputs:
 #   prints the podman, docker or lilipod command to create the distrobox container
-generate_command() {
+generate_create_command()
+{
 	# Set the container hostname the same as the container name.
 	result_command="${container_manager} create"
 	# use the host's namespace for ipc, network, pid, ulimit
@@ -630,12 +695,45 @@ generate_command() {
 		--env \"HOME=${container_user_home}\"
 		--env \"container=${container_manager}\"
 		--env \"TERMINFO_DIRS=/usr/share/terminfo:/run/host/usr/share/terminfo\"
-		--volume /:/run/host:rslave
+		--env \"CONTAINER_ID=${container_name}\"
 		--volume /tmp:/tmp:rslave
 		--volume \"${distrobox_entrypoint_path}\":/usr/bin/entrypoint:ro
 		--volume \"${distrobox_export_path}\":/usr/bin/distrobox-export:ro
 		--volume \"${distrobox_hostexec_path}\":/usr/bin/distrobox-host-exec:ro
 		--volume \"${container_user_home}\":\"${container_user_home}\":rslave"
+
+	# Due to breaking change in https://github.com/opencontainers/runc/commit/d4b670fca6d0ac606777376440ffe49686ce15f4
+	# now we cannot mount /:/run/host as before, as it will try to mount RO partitions as RW thus breaking things.
+	# This will ensure we will mount directories one-by-one thus avoiding this problem.
+	#
+	# This happens ONLY with podman+runc, docker and lilipod are unaffected, so let's do this only if we have podman AND runc.
+	if echo "${container_manager}" | grep -q "podman" && ${container_manager} info | grep -q runc; then
+		for rootdir in /*; do
+
+			# Skip symlinks
+			if [ -L "${rootdir}" ]; then
+				continue
+			fi
+
+			# Find if the directory belongs to a RO mount, if do, mount it as RO+Rslave
+			if findmnt --notruncate --noheadings --list --output OPTIONS --target "${rootdir}" |
+				tr ',' '\n' | grep -q "^ro$"; then
+
+				result_command="${result_command}
+				--volume ${rootdir}:/run/host${rootdir}:ro,rslave"
+				continue
+			fi
+
+			# Else we mount it RW+Rslave
+			result_command="${result_command}
+				--volume ${rootdir}:/run/host${rootdir}:rslave"
+		done
+	else
+		# We're either on podman+crun, docker or lilipod, let's keep old behaviour
+		result_command="${result_command}
+			--volume /:/run/host/:rslave"
+
+	fi
 
 	if [ "${unshare_devsys}" -eq 0 ]; then
 		result_command="${result_command}
@@ -794,6 +892,13 @@ generate_command() {
 			/etc/hosts
 			/etc/resolv.conf
 		"
+
+		# If container_hostname is custom, we skip mounting /etc/hostname, else
+		# we want to keep it in sync
+		if [ "${container_hostname}" = "$(uname -n)" ]; then
+			NET_FILES="${NET_FILES} /etc/hostname"
+		fi
+
 		for net_file in ${NET_FILES}; do
 			if [ -e "${net_file}" ]; then
 				result_command="${result_command}
@@ -854,19 +959,12 @@ generate_command() {
 	printf "%s" "${result_command}"
 }
 
-# Check that we have a complete distrobox installation or
-# entrypoint and export will not work.
-if [ -z "${distrobox_entrypoint_path}" ] || [ -z "${distrobox_export_path}" ]; then
-	printf >&2 "Error: no distrobox-init found in %s\n" "${PATH}"
-	exit 127
-fi
-
 # dry run mode, just generate the command and print it. No creation.
 if [ "${dryrun}" -ne 0 ]; then
 	if [ -n "${container_clone}" ]; then
 		container_image="${container_clone}"
 	fi
-	cmd="$(generate_command)"
+	cmd="$(generate_create_command)"
 	cmd="$(echo "${cmd}" | sed 's/\t//g')"
 	printf "%s\n" "${cmd}"
 	exit 0
@@ -890,8 +988,9 @@ fi
 # if we are using the clone flag, let's set the image variable
 # to the output of container duplication
 if [ -n "${container_clone}" ]; then
-	container_image="$(clone_container)"
+	container_image="$(get_clone_image)"
 fi
+
 # First, check if the image exists in the host or auto-pull is enabled
 # If not prompt to download it.
 if [ "${container_always_pull}" -eq 1 ] ||
@@ -929,7 +1028,7 @@ fi
 
 # Generate the create command and run it
 printf >&2 "Creating '%s' using image %s\t" "${container_name}" "${container_image}"
-cmd="$(generate_command)"
+cmd="$(generate_create_command)"
 # Eval the generated command. If successful display an helpful message.
 # shellcheck disable=SC2086
 if eval ${cmd} > /dev/null; then
@@ -949,6 +1048,8 @@ if eval ${cmd} > /dev/null; then
 			"${distrobox_genentry_path}" "${container_name}"
 		fi
 	fi
-	exit $?
+else
+	error="$?"
+	printf >&2 "\033[31m [ ERR ]\033[0m failed to create container.\n"
+	exit "${error}"
 fi
-printf >&2 "\033[31m [ ERR ]\n\033[0m"

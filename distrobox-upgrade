@@ -24,11 +24,18 @@
 # containers.
 #
 # SUDO_USER is a variable set by SUDO and can be used to check whether the script was called by it. Same thing for DOAS_USER, set by DOAS.
-if { [ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]; } && [ "$(id -ru)" -eq 0 ]; then
+if {
+	[ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]
+} && [ "$(id -ru)" -eq 0 ]; then
 	printf >&2 "Running %s via SUDO/DOAS is not supported. Instead, please try running:\n" "$(basename "${0}")"
 	printf >&2 "  %s --root %s\n" "$(basename "${0}")" "$*"
 	exit 1
 fi
+
+# Ensure we have our env variables correctly set
+[ -z "${USER}" ] && USER="$(id -run)"
+[ -z "${HOME}" ] && HOME="$(getent passwd "${USER}" | cut -d':' -f6)"
+[ -z "${SHELL}" ] && SHELL="$(getent passwd "${USER}" | cut -d':' -f7)"
 
 all=0
 running=0
@@ -37,7 +44,7 @@ distrobox_flags=""
 distrobox_path="$(dirname "$(realpath "${0}")")"
 rootful=0
 verbose=0
-version="1.7.0"
+version="1.8.0"
 
 # Source configuration files, this is done in an hierarchy so local files have
 # priority over system defaults
@@ -65,6 +72,7 @@ for config_file in ${config_files}; do
 	[ -e "${config_file}" ] && . "$(realpath "${config_file}")"
 done
 
+[ -n "${DBX_CONTAINER_MANAGER}" ] && container_manager="${DBX_CONTAINER_MANAGER}"
 [ -n "${DBX_VERBOSE}" ] && verbose="${DBX_VERBOSE}"
 
 # Fixup variable=[true|false], in case we find it in the config file(s)
@@ -80,17 +88,21 @@ if [ "$(id -ru)" -ne 0 ]; then
 	# as root (UID 0).
 	distrobox_sudo_program=${DBX_SUDO_PROGRAM:-${distrobox_sudo_program:-"sudo"}}
 fi
-[ -n "${DBX_CONTAINER_MANAGER}" ] && container_manager="${DBX_CONTAINER_MANAGER}"
 
 # Declare it AFTER config sourcing because we do not want a default name set.
 container_name=""
 
-# Print usage to stdout.
+# show_help will print usage to stdout.
 # Arguments:
+#   None
+# Expected global variables:
+#   version: distrobox version
+# Expected env variables:
 #   None
 # Outputs:
 #   print usage with examples.
-show_help() {
+show_help()
+{
 	cat << EOF
 distrobox version: ${version}
 
@@ -255,6 +267,6 @@ for container in ${container_name}; do
 	printf >&2 "\033[1;31m Upgrading %s...\n\033[0m" "${container}"
 	# shellcheck disable=SC2086,SC2248
 	"${distrobox_path}"/distrobox-enter \
-		${distrobox_flags} ${container} -- \
+		${distrobox_flags} ${container} -- sh -c \
 		"command -v su-exec 2>/dev/null && su-exec root /usr/bin/entrypoint --upgrade || sudo -S /usr/bin/entrypoint --upgrade"
 done

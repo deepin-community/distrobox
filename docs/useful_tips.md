@@ -10,7 +10,6 @@
   - [Export to the host](#export-to-the-host)
   - [Execute commands on the host](#execute-commands-on-the-host)
   - [Resolve "Error cannot open display: :0"](#resolve-error-cannot-open-display-0)
-  - [Enable SSH X-Forwarding when SSH-ing in a distrobox](#enable-ssh-x-forwarding-when-ssh-ing-in-a-distrobox)
   - [Using init system inside a distrobox](#using-init-system-inside-a-distrobox)
   - [Using Docker inside a Distrobox](#using-docker-inside-a-distrobox)
   - [Using Podman inside a Distrobox](#using-podman-inside-a-distrobox)
@@ -33,6 +32,12 @@
 ---
 
 # Useful tips
+
+## Detect if you're in a distrobox
+
+Being this tightly integrated, it may be useful to know when you're in a container or not.
+
+To detect you can just check the environment variable `"${CONTAINER_ID}"`, if set, you're in a distrobox.
 
 ## Launch a distrobox from you applications list
 
@@ -211,22 +216,8 @@ to your `~/.distroboxrc`
 
 ```console
 -$ cat ~/.distroboxrc
-xhost +si:localuser:$USER`
+xhost +si:localuser:$USER >/dev/null
 ```
-
-## Enable SSH X-Forwarding when SSH-ing in a distrobox
-
-SSH X-forwarding by default will not work because the container hostname is
-different from the host's one.
-You can create a distrobox that will have the same hostname as the host by creating it with:
-
-```sh
-distrobox create --name test --hostname "$(uname -n)" --image your-chosen-image:tag
-```
-
-This will ensure SSH X-Forwarding will work when SSH-ing inside the distrobox:
-
-`ssh -X myhost distrobox enter test -- xclock`
 
 ## Using init system inside a distrobox
 
@@ -250,8 +241,8 @@ If you want to use a non-pre-create image, you'll need to add the additional pac
 
 ```console
 distrobox create -i alpine:latest --init --additional-packages "openrc" -n test
-distrobox create -i debian:stable --init --additional-packages "systemd libpam-systemd" -n test
-distrobox create -i ubuntu:22.04 --init --additional-packages "systemd libpam-systemd" -n test
+distrobox create -i debian:stable --init --additional-packages "systemd libpam-systemd pipewire-audio-client-libraries" -n test
+distrobox create -i ubuntu:22.04 --init --additional-packages "systemd libpam-systemd pipewire-audio-client-libraries" -n test
 distrobox create -i archlinux:latest --init --additional-packages "systemd" -n test
 distrobox create -i registry.opensuse.org/opensuse/tumbleweed:latest --init --additional-packages "systemd" -n test
 distrobox create -i registry.fedoraproject.org/fedora:39 --init --additional-packages "systemd" -n test
@@ -344,12 +335,12 @@ distrobox create \
   --unshare-all
 ```
 
-Inside it install podman, and add suduids for the user:
+Inside it install podman, and add subuids for the user:
 
 ```sh
 sudo usermod --add-subuids 10000-65536 $USER
 sudo usermod --add-subgids 10000-65536 $USER
-cat << EOF > /etc/containers/containers.conf
+cat << EOF | sudo tee /etc/containers/containers.conf
 [containers]
 netns="host"
 userns="host"
@@ -587,7 +578,7 @@ aarch64
 
 ## Using the GPU inside the container
 
-For Intel and AMD Gpus, the support is backed in, as the containers will install
+For Intel and AMD GPUs, the support is baked in, as the containers will install
 their latest available mesa/dri drivers.
 
 For NVidia, you can use the `--nvidia` flag during create, see [distrobox-create](./usage/distrobox-create.md)

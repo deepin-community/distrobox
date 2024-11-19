@@ -1,3 +1,27 @@
+distrobox (1.8.0-1) unstable; urgency=medium
+
+  * New upstream version 1.8.0
+
+ -- Michel Lind <michel@michel-slm.name>  Thu, 24 Oct 2024 15:11:19 -0500
+
+distrobox (1.7.2.1-1) unstable; urgency=medium
+
+  * New upstream version 1.7.2.1
+
+ -- Michel Lind <michel@michel-slm.name>  Mon, 13 May 2024 12:14:04 -0500
+
+distrobox (1.7.1.0-1) unstable; urgency=medium
+
+  * New upstream version 1.7.1.0
+
+ -- Michel Lind <michel@michel-slm.name>  Wed, 27 Mar 2024 11:43:17 -0500
+
+distrobox (1.7.0.1-1) unstable; urgency=medium
+
+  * New upstream version 1.7.0.1
+
+ -- Michel Lind <michel@michel-slm.name>  Tue, 12 Mar 2024 22:35:00 -0700
+
 distrobox (1.7.0-1) unstable; urgency=medium
 
   * New upstream version 1.7.0

@@ -30,8 +30,8 @@ graphical apps (X11/Wayland), and audio.
 	--volume:		additional volumes to add to the container
 	--additional-flags/-a:	additional flags to pass to the container manager command
 	--additional-packages/-ap:	additional packages to install during initial container setup
-	--init-hooks:		additional commands to execute during container initialization
-	--pre-init-hooks:	additional commands to execute prior to container initialization
+	--init-hooks:		additional commands to execute at the end of container initialization
+	--pre-init-hooks:	additional commands to execute at the start of container initialization
 	--init/-I:		use init system (like systemd) inside the container.
 				this will make host's processes not visible from within the container. (assumes --unshare-process)
 				may require additional packages depending on the container image: https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
@@ -98,7 +98,7 @@ Use pre-init-hooks to perform an action at the beginning of the container startu
 
 Use init to create a Systemd container (acts similar to an LXC):
 
-	distrobox create -i ubuntu:latest --name test --additional-packages "systemd libpam-systemd" --init
+	distrobox create -i ubuntu:latest --name test --additional-packages "systemd libpam-systemd pipewire-audio-client-libraries" --init
 
 Use init to create a OpenRC container (acts similar to an LXC):
 
@@ -195,8 +195,8 @@ This is needed because `/sbin/init` must be pid 1.
 If you want to use a non-pre-create image, you'll need to add the additional package:
 
 	distrobox create -i alpine:latest --init --additional-packages "openrc" -n test
-	distrobox create -i debian:stable --init --additional-packages "systemd libpam-systemd" -n test
-	distrobox create -i ubuntu:22.04 --init --additional-packages "systemd libpam-systemd" -n test
+	distrobox create -i debian:stable --init --additional-packages "systemd libpam-systemd pipewire-audio-client-libraries" -n test
+	distrobox create -i ubuntu:22.04 --init --additional-packages "systemd libpam-systemd pipewire-audio-client-libraries" -n test
 	distrobox create -i archlinux:latest --init --additional-packages "systemd" -n test
 	distrobox create -i registry.opensuse.org/opensuse/tumbleweed:latest --init --additional-packages "systemd" -n test
 	distrobox create -i registry.fedoraproject.org/fedora:39 --init --additional-packages "systemd" -n test

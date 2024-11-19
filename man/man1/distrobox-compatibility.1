@@ -15,7 +15,7 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "DISTROBOX" "1" "Feb 2024" "Distrobox" "User Manual"
+.TH "DISTROBOX" "1" "Oct 2024" "Distrobox" "User Manual"
 .hy
 .SH COMPATIBILITY
 .PP
@@ -85,11 +85,13 @@ T}
 T{
 Alpine (Toolbox)
 T}@T{
-3.16 3.17 3.18 edge
+3.16 3.17 3.18 3.19 3.20 edge
 T}@T{
 quay.io/toolbx-images/alpine-toolbox:3.16
 quay.io/toolbx-images/alpine-toolbox:3.17
 quay.io/toolbx-images/alpine-toolbox:3.18
+quay.io/toolbx-images/alpine-toolbox:3.19
+quay.io/toolbx-images/alpine-toolbox:3.20
 quay.io/toolbx-images/alpine-toolbox:edge
 quay.io/toolbx-images/alpine-toolbox:latest
 T}
@@ -139,11 +141,12 @@ T}
 T{
 Fedora (Toolbox)
 T}@T{
-37 38 39 Rawhide
+37 38 39 40 Rawhide
 T}@T{
 registry.fedoraproject.org/fedora-toolbox:37
 registry.fedoraproject.org/fedora-toolbox:38
 registry.fedoraproject.org/fedora-toolbox:39
+registry.fedoraproject.org/fedora-toolbox:40
 registry.fedoraproject.org/fedora-toolbox:rawhide
 T}
 T{
@@ -159,7 +162,6 @@ T}@T{
 T}@T{
 registry.access.redhat.com/ubi8/toolbox
 registry.access.redhat.com/ubi9/toolbox
-quay.io/toolbx-images/rhel-toolbox:latest
 T}
 T{
 Rocky Linux (Toolbox)
@@ -173,11 +175,28 @@ T}
 T{
 Ubuntu (Toolbox)
 T}@T{
-16.04 18.04 20.04 22.04
+16.04 18.04 20.04 22.04 24.04
 T}@T{
 quay.io/toolbx/ubuntu-toolbox:16.04 quay.io/toolbx/ubuntu-toolbox:18.04
 quay.io/toolbx/ubuntu-toolbox:20.04 quay.io/toolbx/ubuntu-toolbox:22.04
-quay.io/toolbx/ubuntu-toolbox:latest
+quay.io/toolbx/ubuntu-toolbox:24.04 quay.io/toolbx/ubuntu-toolbox:latest
+T}
+T{
+Chainguard Wolfi (Toolbox)
+T}@T{
+T}@T{
+quay.io/toolbx-images/wolfi-toolbox:latest
+T}
+T{
+Ublue
+T}@T{
+bluefin-cli ubuntu-toolbox fedora-toolbox wolfi-toolbox
+archlinux-distrobox powershell-toolbox
+T}@T{
+ghcr.io/ublue-os/bluefin-cli ghcr.io/ublue-os/bluefin-cli
+ghcr.io/ublue-os/ubuntu-toolbox ghcr.io/ublue-os/fedora-toolbox
+ghcr.io/ublue-os/wolfi-toolbox ghcr.io/ublue-os/arch-distrobox
+ghcr.io/ublue-os/powershell-toolbox
 T}
 T{
 T}@T{
@@ -193,10 +212,12 @@ T}
 T{
 Alpine Linux
 T}@T{
-3.15 3.16
+3.15 3.16 3.17 3.18 3.19 3.20 edge
 T}@T{
 docker.io/library/alpine:3.15 docker.io/library/alpine:3.16
-docker.io/library/alpine:latest
+docker.io/library/alpine:3.17 docker.io/library/alpine:3.18
+docker.io/library/alpine:3.19 docker.io/library/alpine:3.20
+docker.io/library/alpine:edge docker.io/library/alpine:latest
 T}
 T{
 AmazonLinux
@@ -214,6 +235,12 @@ T}@T{
 docker.io/library/archlinux:latest
 T}
 T{
+Blackarch
+T}@T{
+T}@T{
+docker.io/blackarchlinux/blackarch:latest
+T}
+T{
 CentOS Stream
 T}@T{
 8 9
@@ -221,16 +248,8 @@ T}@T{
 quay.io/centos/centos:stream8 quay.io/centos/centos:stream9
 T}
 T{
-CentOS
-T}@T{
-7
-T}@T{
-quay.io/centos/centos:7
-T}
-T{
 Chainguard Wolfi
 T}@T{
-Small note: sudo is missing, use su-exec instead.
 T}@T{
 cgr.dev/chainguard/wolfi-base:latest
 T}
@@ -244,14 +263,14 @@ T{
 Crystal Linux
 T}@T{
 T}@T{
-registry.getcryst.al/crystal/misc/docker:latest
+registry.gitlab.com/crystal-linux/misc/docker:latest
 T}
 T{
 Debian
 T}@T{
 7 8 9 10 11 12
 T}@T{
-docker.io/debian/eol:wheezy docker.io/library/debian:buster-backports
+docker.io/debian/eol:wheezy docker.io/library/debian:buster
 docker.io/library/debian:bullseye-backports
 docker.io/library/debian:bookworm-backports
 docker.io/library/debian:stable-backports
@@ -281,11 +300,11 @@ T}
 T{
 Fedora
 T}@T{
-36 37 38 39 Rawhide
+36 37 38 39 40 Rawhide
 T}@T{
 quay.io/fedora/fedora:36 quay.io/fedora/fedora:37
 quay.io/fedora/fedora:38 quay.io/fedora/fedora:39
-quay.io/fedora/fedora:rawhide
+quay.io/fedora/fedora:40 quay.io/fedora/fedora:rawhide
 T}
 T{
 Gentoo Linux
@@ -371,11 +390,10 @@ quay.io/rockylinux/rockylinux:8 quay.io/rockylinux/rockylinux:8-minimal
 quay.io/rockylinux/rockylinux:9 quay.io/rockylinux/rockylinux:latest
 T}
 T{
-Scientific Linux
+Slackware
 T}@T{
-7
 T}@T{
-docker.io/library/sl:7
+docker.io/vbatts/slackware:current
 T}
 T{
 SteamOS
@@ -390,7 +408,7 @@ T}@T{
 T}@T{
 docker.io/library/ubuntu:14.04 docker.io/library/ubuntu:16.04
 docker.io/library/ubuntu:18.04 docker.io/library/ubuntu:20.04
-docker.io/library/ubuntu:22.04
+docker.io/library/ubuntu:22.04 docker.io/library/ubuntu:23.04
 T}
 T{
 Vanilla OS
@@ -402,8 +420,10 @@ T}
 T{
 Void Linux
 T}@T{
+glibc musl
 T}@T{
 ghcr.io/void-linux/void-glibc-full:latest
+ghcr.io/void-linux/void-musl-full:latest
 T}
 .TE
 .PP

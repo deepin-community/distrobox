@@ -23,16 +23,45 @@
 #	HOME
 #	USER
 # Optional env variables:
+#	DBX_CONTAINER_ALWAYS_PULL
+#	DBX_CONTAINER_CUSTOM_HOME
+#	DBX_CONTAINER_GENERATE_ENTRY
+#	DBX_CONTAINER_HOME_PREFIX
+#	DBX_CONTAINER_HOSTNAME
+#	DBX_CONTAINER_IMAGE
 #	DBX_CONTAINER_MANAGER
 #	DBX_CONTAINER_NAME
+#	DBX_CONTAINER_CLEAN_PATH
+#	DBX_NON_INTERACTIVE
+#	DBX_VERBOSE
 #	DBX_SKIP_WORKDIR
 #	DBX_SUDO_PROGRAM
+
+# Ensure we have our env variables correctly set
+[ -z "${USER}" ] && USER="$(id -run)"
+[ -z "${HOME}" ] && HOME="$(getent passwd "${USER}" | cut -d':' -f6)"
+[ -z "${SHELL}" ] && SHELL="$(getent passwd "${USER}" | cut -d':' -f7)"
 
 app_cache_dir=${XDG_CACHE_HOME:-"${HOME}/.cache"}/distrobox
 
 trap cleanup TERM INT HUP EXIT
 
-cleanup() {
+# cleanup will remove fifo and temp files, and print to stdout
+# container's logs in case of error and verbose.
+# Arguments:
+#   None
+# Expected global variables:
+#   container_manager: string container manager to use
+#   container_name: string container name
+#   app_cache_dir: string cache dire to write file into
+#   logs_pid: string pid of the podman/docker logs process
+#   verbose: bool verbose
+# Expected env variables:
+#   None
+# Outputs:
+#   None
+cleanup()
+{
 	rm -f "${app_cache_dir}/.${container_name}.fifo"
 	if [ -n "${logs_pid:-}" ]; then
 		kill "${logs_pid:-}" 2> /dev/null || :
@@ -48,19 +77,19 @@ cleanup() {
 # containers.
 #
 # SUDO_USER is a variable set by SUDO and can be used to check whether the script was called by it. Same thing for DOAS_USER, set by DOAS.
-if { [ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]; } && [ "$(id -ru)" -eq 0 ]; then
+if {
+	[ -n "${SUDO_USER}" ] || [ -n "${DOAS_USER}" ]
+} && [ "$(id -ru)" -eq 0 ]; then
 	printf >&2 "Running %s via SUDO/DOAS is not supported. Instead, please try running:\n" "$(basename "${0}")"
 	printf >&2 "  %s --root %s\n" "$(basename "${0}")" "$*"
 	exit 1
 fi
 
 # Defaults
-container_command=""
 # by default we use getent to get the login shell of the user and use that
-container_command_login="/bin/sh -c \"\\\$(getent passwd ${USER} | cut -f 7 -d :) -l\""
-# and we execute container_command using sh -c
-container_command_prefix="/bin/sh -c"
-container_image_default="registry.fedoraproject.org/fedora-toolbox:39"
+container_custom_command=0
+container_command_user="$(echo "${USER}" | sed 's|\\|\\\\|g')"
+container_image_default="registry.fedoraproject.org/fedora-toolbox:latest"
 container_manager="autodetect"
 container_manager_additional_flags=""
 container_name=""
@@ -79,7 +108,8 @@ headless=0
 [ "$(id -ru)" -eq 0 ] && rootful=1 || rootful=0
 skip_workdir=0
 verbose=0
-version="1.7.0"
+clean_path=0
+version="1.8.0.1"
 
 # Source configuration files, this is done in an hierarchy so local files have
 # priority over system defaults
@@ -118,6 +148,7 @@ fi
 
 [ -n "${DBX_CONTAINER_MANAGER}" ] && container_manager="${DBX_CONTAINER_MANAGER}"
 [ -n "${DBX_CONTAINER_NAME}" ] && container_name="${DBX_CONTAINER_NAME}"
+[ -n "${DBX_CONTAINER_CLEAN_PATH}" ] && clean_path=1
 [ -n "${DBX_SKIP_WORKDIR}" ] && skip_workdir="${DBX_SKIP_WORKDIR}"
 [ -n "${DBX_NON_INTERACTIVE}" ] && non_interactive="${DBX_NON_INTERACTIVE}"
 [ -n "${DBX_VERBOSE}" ] && verbose="${DBX_VERBOSE}"
@@ -128,12 +159,17 @@ fi
 [ "${verbose}" = "true" ] && verbose=1
 [ "${verbose}" = "false" ] && verbose=0
 
-# Print usage to stdout.
+# show_help will print usage to stdout.
 # Arguments:
+#   None
+# Expected global variables:
+#   version: distrobox version
+# Expected env variables:
 #   None
 # Outputs:
 #   print usage with examples.
-show_help() {
+show_help()
+{
 	cat << EOF
 distrobox version: ${version}
 
@@ -149,6 +185,7 @@ Options:
 
 	--name/-n:		name for the distrobox						default: my-distrobox
 	--/-e:			end arguments execute the rest as command to execute at login	default: default ${USER}'s shell
+	--clean-path:		reset PATH inside container to FHS standard
 	--no-tty/-T:		do not instantiate a tty
 	--no-workdir/-nw:	always start the container from container's home directory
 	--additional-flags/-a:	additional flags to pass to the container manager command
@@ -203,7 +240,12 @@ while :; do
 			;;
 		-a | --additional-flags)
 			if [ -n "$2" ]; then
-				container_manager_additional_flags="${container_manager_additional_flags} ${2}"
+				if [ -z "${container_manager_additional_flags=}" ]; then
+					container_manager_additional_flags="${2}"
+				else
+					container_manager_additional_flags="${container_manager_additional_flags}
+					${2}"
+				fi
 				shift
 				shift
 			fi
@@ -213,15 +255,14 @@ while :; do
 			shift
 			;;
 		-e | --exec | --)
+			container_custom_command=1
 			shift
-			container_command="$1"
-			shift
-			for arg in "$@"; do
-				arg="$(echo "${arg}x" | sed 's|'\''|'\'\\\\\'\''|g')"
-				arg="${arg%x}"
-				container_command="${container_command} '${arg}'"
-			done
+			# We pass the rest of arguments as $@ at the end
 			break
+			;;
+		--clean-path)
+			shift
+			clean_path=1
 			;;
 		-*) # Invalid options.
 			printf >&2 "ERROR: Invalid flag '%s'\n\n" "$1"
@@ -309,36 +350,45 @@ if [ "${rootful}" -ne 0 ]; then
 	container_manager="${distrobox_sudo_program-} ${container_manager}"
 fi
 
-# Generate Podman, Docker or Lilipod command to execute.
+# generate_enter_command will produce a Podman, Docker or Lilipod command to execute to enter the container.
 # Arguments:
 #   None
+# Expected global variables:
+#   container_manager: string container manager to use
+#   container_name: string container name
+#   container_manager_additional_flags: string container manager additional flags to use
+#   container_home: string container's home path
+#   container_path: string container's default PATH variable
+#   headless: bool headless mode
+#   skip_workdir: bool skip workdir
+#   verbose: bool verbose
+#   unshare_groups
+#   distrobox_enter_path
+# Expected env variables:
+#   PATH
+#   USER
+#   PWD
+#   XDG_DATA_DIRS
+#   XDG_CONFIG_DIRS
 # Outputs:
 #   prints the podman, docker or lilipod command to enter the distrobox container
-generate_command() {
-	result_command="${container_manager} exec"
+generate_enter_command()
+{
+	result_command="exec"
 	result_command="${result_command}
 		--interactive"
 	result_command="${result_command}
-		--detach-keys=\"\""
+		--detach-keys="
 
+	# In case of initful systems or unshared groups, we don't enter directly
+	# as our user, but we instead enter as root, and then su $USER, in order
+	# to trigger a proper login
 	if [ "${unshare_groups:-0}" -eq 1 ]; then
-		# In case of initful systems or unshared groups, we don't enter directly
-		# as our user, but we instead enter as root, and then su $USER, in order
-		# to trigger a proper login
 		result_command="${result_command}
-			--user='root'"
-
-		# We use `su` to become the designed user, this triggers a proper login
-		# and we instantiate a proper pty with it
-		container_command_login="su ${USER}"
-		if [ "${headless}" -eq 0 ]; then
-			container_command_login="${container_command_login} --pty"
-		fi
-		container_command_login="${container_command_login} -c \"\\\$(getent passwd ${USER} | cut -f 7 -d :) -l\""
-		container_command_prefix="${container_command_login} -c"
+			--user=root"
 	else
 		result_command="${result_command}
-			--user=\"${USER}"\"
+			--user ${USER}"
 	fi
 
 	# For some usage, like use in service, or launched by non-terminal
@@ -361,7 +411,7 @@ generate_command() {
 	# to avoid confusing the user about shifted paths.
 	# pass distrobox-enter path, it will be used in the distrobox-export tool.
 	if [ "${skip_workdir}" -eq 0 ]; then
-		workdir="$(echo "${PWD:-${container_home:-"/"}}" | sed -e 's/"/\\\"/g')"
+		workdir="${PWD:-${container_home:-"/"}}"
 		if [ -n "${workdir##*"${container_home}"*}" ]; then
 			workdir="/run/host${workdir}"
 		fi
@@ -369,12 +419,14 @@ generate_command() {
 		# Skipping workdir we just enter $HOME of the container.
 		workdir="${container_home}"
 	fi
+
 	result_command="${result_command}
-		--workdir=\"${workdir}\""
+		--workdir ${workdir}"
 	result_command="${result_command}
-		--env \"CONTAINER_ID=${container_name}\""
+		--env CONTAINER_ID=${container_name}"
 	result_command="${result_command}
-		--env \"DISTROBOX_ENTER_PATH=${distrobox_enter_path}\""
+		--env DISTROBOX_ENTER_PATH=${distrobox_enter_path}"
+
 	# Loop through all the environment vars
 	# and export them to the container.
 	set +o xtrace
@@ -386,36 +438,49 @@ generate_command() {
 		# We also NEED to ignore the HOME variable, as this is set at create time
 		# and needs to stay that way to use custom home dirs.
 		result_command="${result_command}
-			--env \"${i}\""
+			--env ${i}"
 	done
 
 	# Start with the $PATH set in the container's config
 	container_paths="${container_path:-""}"
 	# Ensure the standard FHS program paths are in PATH environment
 	standard_paths="/usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin"
-	# collect standard paths not existing from host PATH
-	for standard_path in ${standard_paths}; do
-		pattern="(:|^)${standard_path}(:|$)"
-		if ! echo "${PATH}" | grep -Eq "${pattern}"; then
+
+	if [ "${clean_path}" -eq 1 ]; then
+		# only add the standard paths
+		for standard_path in ${standard_paths}; do
 			if [ -z "${container_paths}" ]; then
 				container_paths="${standard_path}"
 			else
 				container_paths="${container_paths}:${standard_path}"
 			fi
-		fi
-	done
-	# append additional standard paths to host PATH to get final container_paths
-	if [ -n "${container_paths}" ]; then
-		container_paths="${PATH}:${container_paths}"
+		done
 	else
-		container_paths="${PATH}"
+		# collect standard paths not existing from host PATH
+		for standard_path in ${standard_paths}; do
+			pattern="(:|^)${standard_path}(:|$)"
+			if ! echo "${PATH}" | grep -Eq "${pattern}"; then
+				if [ -z "${container_paths}" ]; then
+					container_paths="${standard_path}"
+				else
+					container_paths="${container_paths}:${standard_path}"
+				fi
+			fi
+		done
+		# append additional standard paths to host PATH to get final container_paths
+		if [ -n "${container_paths}" ]; then
+			container_paths="${PATH}:${container_paths}"
+		else
+			container_paths="${PATH}"
+		fi
 	fi
+
 	result_command="${result_command}
-		--env \"PATH=${container_paths}\""
+		--env PATH=${container_paths}"
 
 	# Ensure the standard FHS program paths are in XDG_DATA_DIRS environment
 	standard_paths="/usr/local/share /usr/share"
-	container_paths="${XDG_DATA_DIRS:=}"
+	container_paths="${XDG_DATA_DIRS:-}"
 	# add to the XDG_DATA_DIRS only after the host's paths, and only if not already present.
 	for standard_path in ${standard_paths}; do
 		pattern="(:|^)${standard_path}(:|$)"
@@ -426,20 +491,20 @@ generate_command() {
 		fi
 	done
 	result_command="${result_command}
-		--env \"XDG_DATA_DIRS=${container_paths}\""
+		--env XDG_DATA_DIRS=${container_paths}"
 
 	# This correctly sets the XDG_* dirs to the container_home
 	# it will be $HOME if using regular home dirs
 	# if will be $container_home if using a custom home during create
 	result_command="${result_command}
-		--env \"XDG_CACHE_HOME=${container_home}/.cache\"
-		--env \"XDG_CONFIG_HOME=${container_home}/.config\"
-		--env \"XDG_DATA_HOME=${container_home}/.local/share\"
-		--env \"XDG_STATE_HOME=${container_home}/.local/state\""
+		--env XDG_CACHE_HOME=${container_home}/.cache
+		--env XDG_CONFIG_HOME=${container_home}/.config
+		--env XDG_DATA_HOME=${container_home}/.local/share
+		--env XDG_STATE_HOME=${container_home}/.local/state"
 
 	# Ensure the standard FHS program paths are in XDG_CONFIG_DIRS environment
 	standard_paths="/etc/xdg"
-	container_paths="${XDG_CONFIG_DIRS:=}"
+	container_paths="${XDG_CONFIG_DIRS:-}"
 	# add to the XDG_CONFIG_DIRS only after the host's paths, and only if not already present.
 	for standard_path in ${standard_paths}; do
 		pattern="(:|^)${standard_path}(:|$)"
@@ -450,7 +515,7 @@ generate_command() {
 		fi
 	done
 	result_command="${result_command}
-		--env \"XDG_CONFIG_DIRS=${container_paths}\""
+		--env XDG_CONFIG_DIRS=${container_paths}"
 
 	# re-enable logging if it was enabled previously.
 	if [ "${verbose}" -ne 0 ]; then
@@ -467,18 +532,10 @@ generate_command() {
 	result_command="${result_command}
 		${container_name}"
 
-	if [ -n "${container_command}" ]; then
-		result_command="${result_command}
-			${container_command_prefix} \"${container_command}\""
-	else
-		# if no command was specified, let's execute a command that will find
-		# and run the default shell for the user
-		result_command="${result_command}
-			${container_command_login}"
-	fi
-
 	# Return generated command.
-	printf "%s" "${result_command}"
+	# here we remove tabs as an artifact of using indentation in code to improve
+	# readability
+	printf "%s\n" "${result_command}" | tr -d '\t'
 }
 
 container_home="${HOME}"
@@ -489,15 +546,14 @@ container_status="unknown"
 eval "$(${container_manager} inspect --type container --format \
 	'container_status={{.State.Status}};
 	unshare_groups={{ index .Config.Labels "distrobox.unshare_groups" }};
-	{{range .Config.Env}}{{if slice . 0 5 | eq "HOME="}}container_home={{slice . 5 | printf "%q"}};{{end}}{{end}}
-	{{range .Config.Env}}{{if slice . 0 5 | eq "PATH="}}container_path={{slice . 5 | printf "%q"}}{{end}}{{end}}' \
+	{{range .Config.Env}}{{if and (ge (len .) 5) (eq (slice . 0 5) "HOME=")}}container_home={{slice . 5 | printf "%q"}}{{end}}{{end}};
+	{{range .Config.Env}}{{if and (ge (len .) 5) (eq (slice . 0 5) "PATH=")}}container_path={{slice . 5 | printf "%q"}}{{end}}{{end}}' \
 	"${container_name}")"
 
 # dry run mode, just generate the command and print it. No execution.
 if [ "${dryrun}" -ne 0 ]; then
-	cmd="$(generate_command)"
-	cmd="$(echo "${cmd}" | sed 's/\t//g')"
-	printf "%s\n" "${cmd}"
+	cmd="$(generate_enter_command | sed 's/\t//g')"
+	printf "%s %s\n" "${cmd}" "$*"
 	exit 0
 fi
 
@@ -527,7 +583,7 @@ if [ "${container_status}" = "unknown" ]; then
 			printf >&2 "Creating the container %s\n" "${container_name}"
 
 			if [ "${dryrun}" -ne 1 ]; then
-				eval "${create_command}"
+				${create_command}
 			fi
 			;;
 		n | N | No | no | NO)
@@ -546,11 +602,12 @@ fi
 # If the container is not already running, we need to start if first
 if [ "${container_status}" != "running" ]; then
 	# If container is not running, start it first
+	#
 	# Here, we save the timestamp before launching the start command, so we can
 	# be sure we're working with this very same session of logs later.
-	#
-	log_timestamp="$(date +%FT%T.%N%:z)"
+	log_timestamp="$(date -u +%FT%T).000000000+00:00"
 	${container_manager} start "${container_name}" > /dev/null
+	#
 	# Check if the container is going in error status earlier than the
 	# entrypoint
 	if [ "$(${container_manager} inspect \
@@ -575,13 +632,16 @@ if [ "${container_status}" != "running" ]; then
 		fi
 		# save starting loop timestamp in temp variable, we'll use it
 		# after to let logs command minimize possible holes
-		${container_manager} logs --since "${log_timestamp}" -f "${container_name}" 2> /dev/null \
-			> "${app_cache_dir}/.${container_name}.fifo" &
+		${container_manager} logs --since "${log_timestamp}" -f "${container_name}" \
+			> "${app_cache_dir}/.${container_name}.fifo" 2>&1 &
 		logs_pid="$!"
 
 		# read logs from log_timestamp to now, line by line
 		while IFS= read -r line; do
 			case "${line}" in
+				"+"*)
+					# Ignoring logging commands
+					;;
 				"Error:"*)
 					printf >&2 "\033[31m %s\n\033[0m" "${line}"
 					exit 1
@@ -608,7 +668,66 @@ if [ "${container_status}" != "running" ]; then
 	printf >&2 "\nContainer Setup Complete!\n"
 fi
 
+################################################################################
+# Execution section, in this section we will manipulate the positional parameters
+# in order to generate our long docker/podman/lilipod command to execute.
+#
+# We use positional parameters in order to have the shell manage escaping and spaces
+# so we remove the problem of we having to handle them.
+#
+# 1 - handle absence of custom command, we will need to add a getent command to
+#     execute the right container's user's shell
+# 2 - in case of unshared groups (or initful) we need to trigger a proper login
+#     using `su`, so we will need to manipulate these arguments accorodingly
+# 3 - prepend our generated command
+#     to do this, we use `tac` so we reverse loop it and prepend each argument.
+# 4 - now that we're done, we can prepend our container_command
+#     we will need to use `rev` to reverse it as we reverse loop and prepend each
+#     argument
+################################################################################
+#
+# Setup default commands if none are specified
+# execute a getent command using the /bin/sh shell
+# to find out the default shell of the user, and
+# do a login shell with it (eg: /bin/bash -l)
+if [ "${container_custom_command}" -eq 0 ]; then
+	set - "$@" "/bin/sh" "-c" "\$(getent passwd '${container_command_user}' | cut -f 7 -d :) -l"
+fi
+
+# If we have a command and we're unsharing groups, we need to execute those
+# command using su $container_command_user
+# if we're in a tty, also allocate one
+if [ "${unshare_groups:-0}" -eq 1 ]; then
+	# shellcheck disable=SC2089,SC2016
+	set -- "-c" '"$0" "$@"' -- "$@"
+	set -- "-s" "/bin/sh" "$@"
+	if [ "${headless}" -eq 0 ]; then
+		set -- "--pty" "$@"
+	fi
+	set -- "${container_command_user}" "$@"
+	set -- "su" "$@"
+fi
+
 # Generate the exec command and run it
-cmd="$(generate_command)"
-# shellcheck disable=SC2086
-eval ${cmd}
+cmd="$(generate_enter_command | tac)"
+# Reverse it with tac so we can reverse loop and prepend the command's arguments
+# to our positional parameters
+IFS='
+'
+for arg in ${cmd}; do
+	if echo "${arg}" | grep -q " "; then
+		set - "$(echo "${arg}" | cut -d' ' -f1)" "$(echo "${arg}" | cut -d' ' -f2-)" "$@"
+	else
+		set - "${arg}" "$@"
+	fi
+done
+
+# Prepend the container manager command
+# reverse it first, so we can loop backward as we're prepending not appending
+IFS=' '
+for arg in $(echo "${container_manager}" | rev); do
+	arg="$(echo "${arg}" | rev)"
+	set - "${arg}" "$@"
+done
+
+exec "$@"

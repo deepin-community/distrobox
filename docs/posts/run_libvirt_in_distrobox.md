@@ -6,7 +6,7 @@
 
 # Using an immutable distribution
 
-If you are on an immutable distribution (Silverblue/Kionite, MicroOS) chances are that
+If you are on an immutable distribution (Silverblue/Kionite, Aeon/Kalpa) chances are that
 installing lots and lots of packages on the base system is not advisable.
 
 One way is to use a distrobox for them.
@@ -31,7 +31,7 @@ start_now=false
 unshare_all=true
 additional_packages="systemd"
 # Basic utilities for terminal use
-init_hooks="zypper in -y --no-recommends openssh-server patterns-server-kvm_server patterns-server-kvm_tools qemu-arm qemu-ppc qemu-s390x qemu-extra qemu-linux-user"
+init_hooks="zypper in -y --no-recommends openssh-server patterns-server-kvm_server patterns-server-kvm_tools qemu-arm qemu-ppc qemu-s390x qemu-extra qemu-linux-user qemu-hw-display-virtio-gpu-pci qemu-hw-display-virtio-gpu"
 init_hooks="systemctl enable sshd.service"
 init_hooks="systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket"
 # Add the default user to the libvirt group
@@ -46,7 +46,7 @@ Alternatively, command line:
 
 ```console
 distrobox create --pull --root --init --unshare-all --image registry.opensuse.org/opensuse/distrobox:latest --name libvirtd --additional-flags "-p 2222:22" \
-  --init-hooks "zypper in -y --no-recommends openssh-server patterns-server-kvm_server patterns-server-kvm_tools qemu-arm qemu-ppc qemu-s390x qemu-extra qemu-linux-user && systemctl enable sshd.service && systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket && usermod -aG libvirt $USER"
+  --init-hooks "zypper in -y --no-recommends openssh-server patterns-server-kvm_server patterns-server-kvm_tools qemu-arm qemu-ppc qemu-s390x qemu-extra qemu-linux-user qemu-hw-display-virtio-gpu-pci qemu-hw-display-virtio-gpu && systemctl enable sshd.service && systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket && usermod -aG libvirt $USER"
 
 distrobox-enter --root libvirtd -- distrobox-export --app virt-manager
 ```
